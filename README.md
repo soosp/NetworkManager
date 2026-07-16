@@ -389,7 +389,7 @@ start/stop, which event to emit); `NetworkManager` executes those intents. The
 ### Thread safety
 
 - Adapter state (`_state`) and cross-task signals (`_lastFailedMs`, deferred
-  bits, pending-apply) are `std::atomic` on ESP32/ESP8266; plain on AVR.
+  bits, pending-apply) are `std::atomic` on ESP32; plain on AVR.
 - The decision core is protected by the single `NetworkManager` mutex (ESP32);
   ESP8266 (cooperative) and AVR (single-threaded) need no lock.
 - Callbacks run outside any mutex, on the `update()` task.
