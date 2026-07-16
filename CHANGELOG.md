@@ -13,6 +13,7 @@ and this project adheres to
 
 - Minor spelling and clarifying corrections in `README.md`.
 - Missing dependencies in the `README.md`.
+- Update the ESP8266 test results to the latest layout.
 
 ## [0.1.0] - 2026-07-16
 

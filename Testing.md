@@ -190,45 +190,45 @@ case  prio  addr    scenario                     events  ntp   sw(s) ntp(s)
 #### NodeMCU + Wiznet W5500
 
 ```txt
-==================== SUMMARY ====================
-case  prio  addr    scenario                     events  ntp   sw(s)  ntp(s)
-  0   ETH   dhcp    1  P > S > P > S > P         PASS    PASS    6.5    0.3
-  1   ETH   dhcp    2  P > S > disc > S > P      PASS    PASS   20.7   30.2
-  2   ETH   dhcp    3  P > S > disc > P > S > P  PASS    PASS   20.7   30.1
-  3   ETH   dhcp    4  S > P > S > P             PASS    PASS   20.0    0.4
-  4   ETH   dhcp    5  S > disc > S > P > S > P  PASS    PASS   31.3    0.9
-  5   ETH   dhcp    6  S > disc > P > S > P      PASS    PASS   20.9    0.0
-  6   ETH   dhcp    7  disc > S > P > S > P      PASS    PASS   21.4    0.1
-  7   ETH   dhcp    8  disc > P > S > P          PASS    PASS   20.0    0.4
-  8   ETH   static  1  P > S > P > S > P         PASS    PASS    6.7    0.1
-  9   ETH   static  2  P > S > disc > S > P      PASS    PASS   28.7   30.1
- 10   ETH   static  3  P > S > disc > P > S > P  PASS    PASS   20.8   30.0
- 11   ETH   static  4  S > P > S > P             PASS    PASS   18.7    0.1
- 12   ETH   static  5  S > disc > S > P > S > P  PASS    PASS   20.6    1.0
- 13   ETH   static  6  S > disc > P > S > P      PASS    PASS   20.7    0.6
- 14   ETH   static  7  disc > S > P > S > P      PASS    PASS   20.0    0.3
- 15   ETH   static  8  disc > P > S > P          PASS    PASS   20.0   30.1
- 16   WiFi  dhcp    1  P > S > P > S > P         PASS    PASS   14.5    0.4
- 17   WiFi  dhcp    2  P > S > disc > S > P      PASS    PASS   20.5    1.0
- 18   WiFi  dhcp    3  P > S > disc > P > S > P  PASS    PASS   20.9    1.5
- 19   WiFi  dhcp    4  S > P > S > P             PASS    PASS   11.5    0.3
- 20   WiFi  dhcp    5  S > disc > S > P > S > P  PASS    PASS   20.5   30.4
- 21   WiFi  dhcp    6  S > disc > P > S > P      PASS    PASS   20.6    0.3
- 22   WiFi  dhcp    7  disc > S > P > S > P      PASS    PASS   20.0    0.2
- 23   WiFi  dhcp    8  disc > P > S > P          PASS    PASS   20.7    0.3
- 24   WiFi  static  1  P > S > P > S > P         PASS    PASS   15.0    0.3
- 25   WiFi  static  2  P > S > disc > S > P      PASS    PASS   20.4    0.3
- 26   WiFi  static  3  P > S > disc > P > S > P  PASS    PASS   20.4    0.2
- 27   WiFi  static  4  S > P > S > P             PASS    PASS   14.5    0.0
- 28   WiFi  static  5  S > disc > S > P > S > P  PASS    PASS   20.5   30.1
- 29   WiFi  static  6  S > disc > P > S > P      PASS    PASS   20.5   30.4
- 30   WiFi  static  7  disc > S > P > S > P      PASS    PASS   20.0    0.2
- 31   WiFi  static  8  disc > P > S > P          PASS    PASS   20.0    0.2
+================================= SUMMARY =================================
+case  prio  addr    scenario                     events  ntp   sw(s) ntp(s)
+   0  ETH   dhcp    1  P > S > P > S > P         PASS    PASS    6.5    0.3
+   1  ETH   dhcp    2  P > S > disc > S > P      PASS    PASS   20.7   30.2
+   2  ETH   dhcp    3  P > S > disc > P > S > P  PASS    PASS   20.7   30.1
+   3  ETH   dhcp    4  S > P > S > P             PASS    PASS   20.0    0.4
+   4  ETH   dhcp    5  S > disc > S > P > S > P  PASS    PASS   31.3    0.9
+   5  ETH   dhcp    6  S > disc > P > S > P      PASS    PASS   20.9    0.0
+   6  ETH   dhcp    7  disc > S > P > S > P      PASS    PASS   21.4    0.1
+   7  ETH   dhcp    8  disc > P > S > P          PASS    PASS   20.0    0.4
+   8  ETH   static  1  P > S > P > S > P         PASS    PASS    6.7    0.1
+   9  ETH   static  2  P > S > disc > S > P      PASS    PASS   28.7   30.1
+  10  ETH   static  3  P > S > disc > P > S > P  PASS    PASS   20.8   30.0
+  11  ETH   static  4  S > P > S > P             PASS    PASS   18.7    0.1
+  12  ETH   static  5  S > disc > S > P > S > P  PASS    PASS   20.6    1.0
+  13  ETH   static  6  S > disc > P > S > P      PASS    PASS   20.7    0.6
+  14  ETH   static  7  disc > S > P > S > P      PASS    PASS   20.0    0.3
+  15  ETH   static  8  disc > P > S > P          PASS    PASS   20.0   30.1
+  16  WiFi  dhcp    1  P > S > P > S > P         PASS    PASS   14.5    0.4
+  17  WiFi  dhcp    2  P > S > disc > S > P      PASS    PASS   20.5    1.0
+  18  WiFi  dhcp    3  P > S > disc > P > S > P  PASS    PASS   20.9    1.5
+  19  WiFi  dhcp    4  S > P > S > P             PASS    PASS   11.5    0.3
+  20  WiFi  dhcp    5  S > disc > S > P > S > P  PASS    PASS   20.5   30.4
+  21  WiFi  dhcp    6  S > disc > P > S > P      PASS    PASS   20.6    0.3
+  22  WiFi  dhcp    7  disc > S > P > S > P      PASS    PASS   20.0    0.2
+  23  WiFi  dhcp    8  disc > P > S > P          PASS    PASS   20.7    0.3
+  24  WiFi  static  1  P > S > P > S > P         PASS    PASS   15.0    0.3
+  25  WiFi  static  2  P > S > disc > S > P      PASS    PASS   20.4    0.3
+  26  WiFi  static  3  P > S > disc > P > S > P  PASS    PASS   20.4    0.2
+  27  WiFi  static  4  S > P > S > P             PASS    PASS   14.5    0.0
+  28  WiFi  static  5  S > disc > S > P > S > P  PASS    PASS   20.5   30.1
+  29  WiFi  static  6  S > disc > P > S > P      PASS    PASS   20.5   30.4
+  30  WiFi  static  7  disc > S > P > S > P      PASS    PASS   20.0    0.2
+  31  WiFi  static  8  disc > P > S > P          PASS    PASS   20.0    0.2
 
   32/32 cases fully passed
   (prio = primary interface; sw = worst ENTER->event, approximate;
    ntp = worst event->sync.)
   Type a case number + ENTER to re-run just that case;
   'r' resets and runs the whole matrix again.
-================================================
+===========================================================================
 ```
