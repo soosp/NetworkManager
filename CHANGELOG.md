@@ -11,7 +11,8 @@ and this project adheres to
 
 ### Fixed
 
-- Minor spelling and clarifying corrections in `README.md`
+- Minor spelling and clarifying corrections in `README.md`.
+- Missing dependencies in the `README.md`.
 
 ## [0.1.0] - 2026-07-16
 

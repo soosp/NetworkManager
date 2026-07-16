@@ -73,10 +73,17 @@ ESP32 or ESP8266 unchanged.
 
 - [soosp/NetworkProfile](https://github.com/soosp/NetworkProfile) — interface
   configuration and configuration persistence
+- [vshymanskyy/Preferences](https://github.com/vshymanskyy/Preferences) —
+  **ESP8266 only**; provides the same `Preferences` API as ESP32. On ESP32 this
+  is part of the Arduino core and requires no separate installation.
+  Needed by [soosp/NetworkProfile](https://github.com/soosp/NetworkProfile).
+- [soosp/EEPROMPreferences](https://github.com/soosp/EEPROMPreferences) —
+  **AVR only**; provides `Preferences` compatible API backed by EEPROM.
+  Needed by [soosp/NetworkProfile](https://github.com/soosp/NetworkProfile).
 - [soosp/Host](https://github.com/soosp/Host) — IP/FQDN validators and the
-  FQDN-length policy for NTP-server strings
+  FQDN-length policy for NTP-server strings.
 - [arduino-libraries/Ethernet](https://github.com/arduino-libraries/ethernet) —
-  **AVR only**; Ethernet library (> 2.0)
+  **AVR only**; Ethernet library (> 2.0).
 
 ## Quick Start
 
