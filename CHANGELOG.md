@@ -9,6 +9,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Fixed
+
+- Minor spelling and clarifying corrections in `README.md`
+
 ## [0.1.0] - 2026-07-16
 
 First public release.

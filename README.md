@@ -60,10 +60,10 @@ restore. Application code interacts only with `NetworkManager` after setup.
 |Platform|Adapter|Interface|
 |---|---|---|
 |ESP32|`ESP32WiFiAdapter`|WiFi STA|
-|ESP32|`ESP32EthAdapter`|Ethernet (SPI PHY)|
+|ESP32|`ESP32EthAdapter`|Ethernet (SPI/RMII PHY)|
 |ESP8266|`ESP8266WiFiAdapter`|WiFi STA|
 |ESP8266|`ESP8266EthAdapter`|wired lwIP (W5500 / W5100 / ENC28J60)|
-|AVR|`AVREthernetAdapter`|Ethernet (W5100 / W5500)|
+|AVR|`AVREthernetAdapter`|Ethernet (W5100 / W5200 / W5500)|
 
 The alias headers `EthAdapter.h` and `WiFiAdapter.h` resolve to the correct
 adapter for the target, so a fallback sketch can be written once and built for
@@ -127,8 +127,8 @@ void loop() {
 }
 ```
 
-See the `examples/` directory for ETH-only, WiFi-only, ETH+WiFi fallback, and
-AVR sketches.
+See the `examples/` directory for ETH-only, WiFi-only and ETH+WiFi fallback
+sketches.
 
 ## ETH → WiFi fallback
 
@@ -236,8 +236,8 @@ Define macros **before** including any library header (or in `platformio.ini`
 |`NETWORK_MANAGER_RECONNECT_TIMEOUT`|`60000`|ms before `DISCONNECTED`; 0 disables.|
 |`NETWORK_MANAGER_MUTEX_TIMEOUT`|`1000`|Mutex timeout, ms (ESP32 only).|
 |`NETWORK_MANAGER_DEFAULT_NTP_SYNC_INTERVAL`|`3600000`|Default SNTP interval, ms.|
-|`NETWORK_MANAGER_DEFAULT_NTP_RETRY_INTERVAL`|`30000`|AVR only: base retry delay after a failed sync (server already resolved), ms; doubles per failure up to `_MAX`. No effect on ESP.|
-|`NETWORK_MANAGER_DEFAULT_NTP_RETRY_MAX`|`300000`|AVR only: cap for the retry backoff, ms.|
+|`NETWORK_MANAGER_DEFAULT_NTP_RETRY_INTERVAL`|`30000`|AVR only; base retry delay after a failed sync (server already resolved), ms; doubles per failure up to `_MAX`. No effect on ESP.|
+|`NETWORK_MANAGER_DEFAULT_NTP_RETRY_MAX`|`300000`|AVR only; cap for the retry backoff, ms.|
 |`NETWORK_ADAPTER_RETRY_INTERVAL`|`15000`|Probe retry interval, ms.|
 
 The full list, including adapter-specific and PHY-selection macros, is in
