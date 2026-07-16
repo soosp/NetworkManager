@@ -1,0 +1,58 @@
+{
+  "name": "NetworkManager",
+  "version": "0.1.0",
+  "description": "Priority-based network connection manager for ESP32, ESP8266 and AVR. Supports WiFi and Ethernet with automatic fallback.",
+  "keywords": [
+    "network",
+    "wifi",
+    "ethernet",
+    "manager",
+    "fallback",
+    "esp32",
+    "esp8266",
+    "avr"
+  ],
+  "authors": [
+    {
+      "name": "Péter Soós",
+      "url": "https://github.com/soosp"
+    }
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/soosp/NetworkManager"
+  },
+  "license": "MIT",
+  "homepage": "https://github.com/soosp/NetworkManager",
+  "dependencies": [
+    {
+      "name": "soosp/Host",
+      "version": "^0.7.0"
+    },
+    {
+      "name": "soosp/NetworkProfile",
+      "version": "^0.1.0"
+    },
+    {
+      "name": "vshymanskyy/Preferences",
+      "version": "^2.1.0",
+      "platforms": ["espressif8266"]
+    },
+    {
+      "name": "soosp/EEPROMPreferences",
+      "version": "^0.2.0",
+      "platforms": ["atmelavr"]
+    },
+    {
+      "name": "arduino-libraries/Ethernet",
+      "version": "^2.0.2",
+      "platforms": ["atmelavr"]
+    }
+  ],
+  "frameworks": "arduino",
+  "platforms": [
+    "espressif32",
+    "espressif8266",
+    "atmelavr"
+  ]
+}

@@ -1,0 +1,20 @@
+# Normalise line endings: LF in the repository, auto-converted on checkout.
+* text=auto eol=lf
+
+# Source and docs are LF everywhere.
+*.h    text eol=lf
+*.cpp  text eol=lf
+*.ino  text eol=lf
+*.c    text eol=lf
+*.md   text eol=lf
+*.json text eol=lf
+*.properties text eol=lf
+
+# Platform-specific scripts MUST keep their native endings or they break.
+*.sh  text eol=lf
+*.bat text eol=crlf
+
+# Binary artefacts (never diffed or line-ending-converted).
+*.exe binary
+*.o   binary
+*.bin binary

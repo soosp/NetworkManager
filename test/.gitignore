@@ -1,0 +1,5 @@
+# Built host-test binaries
+nm_harness
+test_glue
+*.exe
+*.o

@@ -1,0 +1,20 @@
+# PlatformIO
+.pio/
+.pioenvs/
+.piolibdeps/
+
+# VS Code
+.vscode/
+!.vscode/tasks.json
+
+# Python (PlatformIO uses it)
+__pycache__/
+*.pyc
+
+# Build artefacts (test/ has its own ignore for the host-test binaries)
+*.exe
+*.o
+
+# OS
+.DS_Store
+Thumbs.db
