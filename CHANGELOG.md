@@ -15,6 +15,14 @@ and this project adheres to
 - Missing dependencies in the `README.md`.
 - Update the ESP8266 test results to the latest layout.
 
+### Changed
+
+- The value of the `NETWORK_MANAGER_MAX_ADAPTERS` macro has been reduced from 4
+  to 2, because there are currently only two supported types, and only one
+  instance of each is allowed. This allows applications using the default
+  settings to save 2x the memory required by NTP servers. This macro can be
+  configured by the application; only the default value has changed.
+
 ## [0.1.0] - 2026-07-16
 
 First public release.

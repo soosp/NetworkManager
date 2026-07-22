@@ -12,7 +12,7 @@
 #include "NetworkManagerCore.h"   // pure decision logic (host-testable, no Arduino)
 
 #ifndef NETWORK_MANAGER_MAX_ADAPTERS
-#   define NETWORK_MANAGER_MAX_ADAPTERS 4
+#   define NETWORK_MANAGER_MAX_ADAPTERS 2
 #endif
 
 #if (NETWORK_MANAGER_MAX_ADAPTERS < 1) || (NETWORK_MANAGER_MAX_ADAPTERS > 8)
