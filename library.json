@@ -1,6 +1,6 @@
 {
   "name": "NetworkManager",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Priority-based network connection manager for ESP32, ESP8266 and AVR. Supports WiFi and Ethernet with automatic fallback.",
   "keywords": [
     "network",

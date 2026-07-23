@@ -9,6 +9,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-07-23
+
 ### Fixed
 
 - Fix `.gitignore` entry to track file `.vscode\tasks.json` used to access
@@ -77,6 +79,7 @@ First public release.
   `EthWiFiFallback` (ESP).
 - API reference (`API.md`) and testing notes (`Testing.md`).
 
-[Unreleased]: https://github.com/soosp/NetworkManager/compare/0.1.1...HEAD
+[Unreleased]: https://github.com/soosp/NetworkManager/compare/0.1.2...HEAD
+[0.1.2]: https://github.com/soosp/NetworkManager/compare/0.1.1...0.1.2
 [0.1.1]: https://github.com/soosp/NetworkManager/compare/0.1.0...0.1.1
 [0.1.0]: https://github.com/soosp/NetworkManager/releases/tag/0.1.0
