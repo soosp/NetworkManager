@@ -9,11 +9,14 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-07-23
+
 ### Fixed
 
 - Minor spelling and clarifying corrections in `README.md`.
 - Missing dependencies in the `README.md`.
 - Update the ESP8266 test results to the latest layout.
+- Fix Changelog links
 
 ### Changed
 
@@ -61,5 +64,6 @@ First public release.
   `EthWiFiFallback` (ESP).
 - API reference (`API.md`) and testing notes (`Testing.md`).
 
-[Unreleased]: https://github.com/soosp/NetworkManager/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/soosp/NetworkManager/releases/tag/v0.1.0
+[Unreleased]: https://github.com/soosp/NetworkManager/compare/0.1.1...HEAD
+[0.1.1]: https://github.com/soosp/NetworkManager/compare/0.1.0...0.1.1
+[0.1.0]: https://github.com/soosp/NetworkManager/releases/tag/0.1.0
