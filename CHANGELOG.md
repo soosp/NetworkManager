@@ -9,6 +9,15 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Fixed
+
+- Fix `.gitignore` entry to track file `.vscode\tasks.json` used to access
+  NetworkManager Core\`s host test suite directly from VSCode (`Ctrl+Shift+B`).
+
+### Added
+
+- Add `.vscode\tasks.json` to the git repository.
+
 ## [0.1.1] - 2026-07-23
 
 ### Fixed

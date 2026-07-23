@@ -4,7 +4,7 @@
 .piolibdeps/
 
 # VS Code
-.vscode/
+.vscode/*
 !.vscode/tasks.json
 
 # Python (PlatformIO uses it)

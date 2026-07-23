@@ -1,0 +1,28 @@
+{
+  // One-click test runner for VSCode. Press Ctrl+Shift+B (Run Build Task) and
+  // pick "Run NetworkManager tests", or set it as default. Assumes the project
+  // root is opened as the workspace folder and the tests live in test/. If your
+  // tests are elsewhere, adjust the "cwd" below.
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Run NetworkManager tests",
+      "type": "shell",
+      "command": "./run_tests.sh",
+      "windows": { "command": "cmd.exe", "args": ["/c", "run_tests.bat", "nopause"] },
+      "options": {
+        "cwd": "${workspaceFolder}/test",
+        "env": {
+          "PATH": "C:\\msys64\\ucrt64\\bin;C:\\msys64\\usr\\bin;${env:PATH}"
+        }
+      },
+      "group": { "kind": "build", "isDefault": true },
+      "problemMatcher": "$gcc",
+      "presentation": {
+        "reveal": "always",
+        "panel": "shared",
+        "clear": true
+      }
+    }
+  ]
+}
