@@ -9,6 +9,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Fixed
+
+- Re-add the `FallbackTestRunner.ino` examle file. It somehow fell out of git
+  tracking.
+
 ## [0.1.2] - 2026-07-23
 
 ### Fixed
