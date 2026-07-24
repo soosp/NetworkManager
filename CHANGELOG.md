@@ -9,6 +9,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-07-24
+
 ### Fixed
 
 - Re-add the `FallbackTestRunner.ino` examle file. It somehow fell out of git
@@ -92,7 +94,8 @@ First public release.
   `EthWiFiFallback` (ESP).
 - API reference (`API.md`) and testing notes (`Testing.md`).
 
-[Unreleased]: https://github.com/soosp/NetworkManager/compare/0.1.2...HEAD
+[Unreleased]: https://github.com/soosp/NetworkManager/compare/0.1.3...HEAD
+[0.1.3]: https://github.com/soosp/NetworkManager/compare/0.1.2...0.1.3
 [0.1.2]: https://github.com/soosp/NetworkManager/compare/0.1.1...0.1.2
 [0.1.1]: https://github.com/soosp/NetworkManager/compare/0.1.0...0.1.1
 [0.1.0]: https://github.com/soosp/NetworkManager/releases/tag/0.1.0
