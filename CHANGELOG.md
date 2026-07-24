@@ -9,6 +9,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Fixed
+
+- Bump to `NetworkProfile` version 0.4.1. In the previous version, there was a
+  missing `#include`, which prevented it from compiling on the ESP32.
+
 ## [0.1.3] - 2026-07-24
 
 ### Fixed
