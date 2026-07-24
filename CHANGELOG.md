@@ -14,6 +14,14 @@ and this project adheres to
 - Re-add the `FallbackTestRunner.ino` examle file. It somehow fell out of git
   tracking.
 
+### Changed
+
+- Bump to `NetworkProfile` version 0.4.0. There are no changes to the code;
+  however, the comments had to be clarified due to changes in how
+  `NetworkProfile` handles WiFi transmit power. This version has eliminated
+  the possibility of a hidden discrepancy between the actual value and the
+  configured and stored value on the ESP32 platform.
+
 ## [0.1.2] - 2026-07-23
 
 ### Fixed

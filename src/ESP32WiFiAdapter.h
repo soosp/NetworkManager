@@ -146,12 +146,14 @@ public:
     /**
      * @brief Sets the WiFi transmit power in dBm at runtime.
      *
-     * Writes through to the profile (validated + lock-protected) and applies it
-     * immediately, so it also survives reconnects (start() re-applies the profile
-     * value). Persist it across reboots by saving the profile. The value is
-     * quantised to the radio's step; getTxPower() returns the configured dBm.
+     * Writes through to the profile (validated + lock-protected) and applies
+     * it immediately, so it also survives reconnects (start() re-applies the
+     * profile value). Persist it across reboots by saving the profile.
+     * On ESP32 a value that is not one of the radio's supported levels is
+     * refused rather than adjusted, so getTxPower() always returns exactly
+     * what was set.
      *
-     * @return false if @p dBm is outside the valid range (nothing changed).
+     * @return false if @p dBm is not accepted by the platform (nothing changed).
      */
     bool setTxPower(float dBm) {
         if (!_wifiProfile.setTxPower(dBm)) return false;   // validated + stored in the profile

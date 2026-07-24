@@ -180,7 +180,7 @@ public:
      * immediately, so it also survives reconnects (start() re-applies the profile
      * value). Persist it across reboots by saving the profile.
      *
-     * @return false if @p dBm is outside the valid range (nothing changed).
+     * @return false if @p dBm is not accepted by the platform (nothing changed).
      */
     bool setTxPower(float dBm) {
         if (!_wifiProfile.setTxPower(dBm)) return false;   // validated + stored in the profile
