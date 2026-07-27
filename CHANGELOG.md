@@ -9,6 +9,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Changed
+
+- refactor: Replace bitwise AND (`&=`) with logical AND (`&&`) to avoid implicit
+  bool-to-int conversions and clarify boolean logic intent.
+
 ## [0.1.4] - 2026-07-24
 
 ### Fixed

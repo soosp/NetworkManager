@@ -698,7 +698,7 @@ public:
     bool setHostname(const char* name) {
         bool ok = (_adapterCount != 0);
         for (uint8_t i = 0; i < _adapterCount; i++)
-            ok &= _adapters[i]->getProfile().setHostname(name);
+            ok = _adapters[i]->getProfile().setHostname(name) && ok;
         return ok;
     }
 
@@ -873,58 +873,58 @@ public:
         char buf[64];
         bool ok = true;
 
-        ok &= _jsonCat(out, "{", len);
+        ok = ok && _jsonCat(out, "{", len);
         const char* ifn =
             (s.interfaceType == NetworkProfile::InterfaceType::ETH)  ? "eth"  :
             (s.interfaceType == NetworkProfile::InterfaceType::WIFI) ? "wifi" : "unknown";
         snprintf(buf, sizeof(buf), "\"interface\":\"%s\",\"connected\":%s",
                  ifn, s.connected ? "true" : "false");
-        ok &= _jsonCat(out, buf, len);
+        ok = ok && _jsonCat(out, buf, len);
         snprintf(buf, sizeof(buf), ",\"ip\":\"%u.%u.%u.%u\"",
                  s.localIP[0], s.localIP[1], s.localIP[2], s.localIP[3]);
-        ok &= _jsonCat(out, buf, len);
+        ok = ok && _jsonCat(out, buf, len);
         snprintf(buf, sizeof(buf), ",\"mask\":\"%u.%u.%u.%u\"",
                  s.subnetMask[0], s.subnetMask[1], s.subnetMask[2], s.subnetMask[3]);
-        ok &= _jsonCat(out, buf, len);
+        ok = ok && _jsonCat(out, buf, len);
         snprintf(buf, sizeof(buf), ",\"gw\":\"%u.%u.%u.%u\"",
                  s.gateway[0], s.gateway[1], s.gateway[2], s.gateway[3]);
-        ok &= _jsonCat(out, buf, len);
+        ok = ok && _jsonCat(out, buf, len);
 
-        ok &= _jsonCat(out, ",\"dns\":[", len);
+        ok = ok && _jsonCat(out, ",\"dns\":[", len);
         bool first = true;
         for (uint8_t i = 0; i < NetworkProfile::DNS_SERVER_COUNT; i++) {
             if (s.dns[i] == IPAddress()) continue;
             snprintf(buf, sizeof(buf), "%s\"%u.%u.%u.%u\"",
                      first ? "" : ",", s.dns[i][0], s.dns[i][1], s.dns[i][2], s.dns[i][3]);
-            ok &= _jsonCat(out, buf, len);
+            ok = ok && _jsonCat(out, buf, len);
             first = false;
         }
-        ok &= _jsonCat(out, "]", len);
+        ok = ok && _jsonCat(out, "]", len);
 
 #if (NETWORK_PROFILE_NTP_SERVER_COUNT > 0)
         if (includeNtp) {
             snprintf(buf, sizeof(buf), ",\"ntp\":{\"synced\":%s,\"servers\":[",
                      isTimeValid() ? "true" : "false");
-            ok &= _jsonCat(out, buf, len);
+            ok = ok && _jsonCat(out, buf, len);
             char name[Host::MAX_FQDN_SIZE];
             bool firstNtp = true;
             for (uint8_t i = 0; i < NetworkProfile::NTP_SERVER_COUNT; i++) {
                 const bool      hasName = getActiveNtpName(i, name, sizeof(name));
                 const IPAddress nip     = getActiveNtpIP(i);
                 if (!hasName && nip == IPAddress()) continue;   // unused slot
-                ok &= _jsonCat(out, firstNtp ? "{\"name\":\"" : ",{\"name\":\"", len);
-                if (hasName) ok &= _jsonCat(out, name, len);
+                ok = ok && _jsonCat(out, firstNtp ? "{\"name\":\"" : ",{\"name\":\"", len);
+                if (hasName) ok = ok && _jsonCat(out, name, len);
                 snprintf(buf, sizeof(buf), "\",\"ip\":\"%u.%u.%u.%u\"}",
                          nip[0], nip[1], nip[2], nip[3]);
-                ok &= _jsonCat(out, buf, len);
+                ok = ok && _jsonCat(out, buf, len);
                 firstNtp = false;
             }
-            ok &= _jsonCat(out, "]}", len);
+            ok = ok && _jsonCat(out, "]}", len);
         }
 #else
         (void)includeNtp;
 #endif
-        ok &= _jsonCat(out, "}", len);
+        ok = ok && _jsonCat(out, "}", len);
 
         if (!ok) { out[0] = '\0'; return 0; }
         return strlen(out);
