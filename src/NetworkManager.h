@@ -63,8 +63,8 @@
 #endif
 
 #if defined(ARDUINO_ARCH_ESP32) || defined(ARDUINO_ARCH_ESP8266)
-#   include <lwip/dns.h>         // dns_setserver() — re-assert after teardown
-#   include <lwip/ip_addr.h>     // ip_addr_t / IP_ADDR4
+#   include <lwip/dns.h>            // dns_setserver() — re-assert after teardown
+#   include <lwip/ip_addr.h>        // ip_addr_t / IP_ADDR4
 #endif
 
 
@@ -73,8 +73,8 @@
 #       include <esp_sntp.h>
 #   elif defined(ARDUINO_ARCH_ESP8266)
 #       include <coredecls.h>
-#       include <lwip/apps/sntp.h>   // sntp_servermode_dhcp() — DHCP option 42 NTP
-                                     // (a no-op macro when not compiled into lwip2)
+#       include <lwip/apps/sntp.h>  // sntp_servermode_dhcp() — DHCP option 42 NTP
+                                    // (a no-op macro when not compiled into lwip2)
 #   elif defined(ARDUINO_ARCH_AVR)
         // AVR has no SDK SNTP stack, so NetworkManager runs a tiny SNTP client
         // itself over UDP. NTP is transport-agnostic, but on AVR the only
@@ -83,7 +83,7 @@
         // seam (e.g. a UDP client obtained from the active adapter) would go.
 #       include <Ethernet.h>
 #       include <Dns.h>
-#       include <string.h>     // memset() for the SNTP request buffer
+#       include <string.h>          // memset() for the SNTP request buffer
 #   endif
 #endif
 
@@ -965,27 +965,27 @@ private:
 #ifndef ARDUINO_ARCH_AVR
     std::atomic<bool> _timeValid{false};
 #else
-    bool            _timeValid                              = false;
+    bool              _timeValid = false;
 #endif
 
 #if defined(ARDUINO_ARCH_AVR)
     // ---- AVR minimal SNTP client state (loop task only; no atomics needed) ----
     enum class AvrNtpState : uint8_t { IDLE, WAIT_REPLY };
 
-    EthernetUDP     _avrNtpUdp;                              ///< UDP socket, opened per sync and closed after.
-    NetworkProfile* _avrNtpProfile     = nullptr;           ///< Active profile to read getNtp(0) from; null = NTP off.
-    IPAddress       _avrNtpServerIp;                         ///< Cached resolved server address.
-    bool            _avrNtpServerKnown  = false;             ///< True once _avrNtpServerIp is valid.
-    AvrNtpState     _avrNtpState         = AvrNtpState::IDLE;///< Request/reply state machine.
-    bool            _avrNtpDue           = false;            ///< A sync has been requested (connect or interval).
-    uint32_t        _avrNtpLastSyncMs    = 0;                ///< millis() of last sync/attempt (0 = never).
-    uint32_t        _avrNtpRetryInterval = 0;                ///< Post-resolve backoff delay (0 = use sync interval).
-    uint32_t        _avrNtpReqSentMs     = 0;                ///< millis() the current request was sent.
-    uint32_t        _syncEpoch           = 0;                ///< Unix epoch captured at last sync.
-    uint32_t        _syncMillis          = 0;                ///< millis() captured at last sync (extrapolation base).
+    EthernetUDP     _avrNtpUdp;                                ///< UDP socket, opened per sync and closed after.
+    NetworkProfile* _avrNtpProfile       = nullptr;            ///< Active profile to read getNtp(0) from; null = NTP off.
+    IPAddress       _avrNtpServerIp;                           ///< Cached resolved server address.
+    bool            _avrNtpServerKnown   = false;              ///< True once _avrNtpServerIp is valid.
+    AvrNtpState     _avrNtpState         = AvrNtpState::IDLE;  ///< Request/reply state machine.
+    bool            _avrNtpDue           = false;              ///< A sync has been requested (connect or interval).
+    uint32_t        _avrNtpLastSyncMs    = 0;                  ///< millis() of last sync/attempt (0 = never).
+    uint32_t        _avrNtpRetryInterval = 0;                  ///< Post-resolve backoff delay (0 = use sync interval).
+    uint32_t        _avrNtpReqSentMs     = 0;                  ///< millis() the current request was sent.
+    uint32_t        _syncEpoch           = 0;                  ///< Unix epoch captured at last sync.
+    uint32_t        _syncMillis          = 0;                  ///< millis() captured at last sync (extrapolation base).
 
-    static constexpr uint16_t AVR_NTP_LOCAL_PORT = 8888;    ///< Local UDP port for the client.
-    static constexpr uint16_t AVR_NTP_SERVER_PORT = 123;    ///< Standard NTP port.
+    static constexpr uint16_t AVR_NTP_LOCAL_PORT = 8888;       ///< Local UDP port for the client.
+    static constexpr uint16_t AVR_NTP_SERVER_PORT = 123;       ///< Standard NTP port.
     static constexpr uint32_t AVR_NTP_REPLY_TIMEOUT_MS = 2000; ///< Give up waiting for a reply after this.
 #endif
 #endif
@@ -1501,8 +1501,8 @@ private:
             _avrNtpState         = AvrNtpState::IDLE;
             _avrNtpServerKnown   = false;   // re-resolve on the restored network
             _avrNtpRetryInterval = 0;       // fresh backoff after the outage
-            _avrNtpLastSyncMs    = 0;        // 0 -> due immediately
-            _avrNtpDue           = true;     // fire as soon as the link is back
+            _avrNtpLastSyncMs    = 0;       // 0 -> due immediately
+            _avrNtpDue           = true;    // fire as soon as the link is back
             return;
         }
 
@@ -1536,7 +1536,7 @@ private:
                 uint8_t pkt[48];
                 _ntpBuildRequest(pkt);
                 if (!_avrNtpUdp.begin(AVR_NTP_LOCAL_PORT)) {
-                    _avrNtpBackoff();               // post-resolve failure
+                    _avrNtpBackoff();           // post-resolve failure
                     _avrNtpDue        = false;
                     _avrNtpLastSyncMs = now;
                     return;
