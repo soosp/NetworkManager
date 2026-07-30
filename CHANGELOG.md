@@ -13,6 +13,7 @@ and this project adheres to
 
 - refactor: Replace bitwise AND (`&=`) with logical AND (`&&`) to avoid implicit
   bool-to-int conversions and clarify boolean logic intent.
+- Bump to `NetworkProfile` version 0.5.0.
 
 ## [0.1.4] - 2026-07-24
 
