@@ -34,7 +34,7 @@ and this project adheres to
 
 ### Fixed
 
-- Re-add the `FallbackTestRunner.ino` examle file. It somehow fell out of git
+- Re-add the `FallbackTestRunner.ino` example file. It somehow fell out of git
   tracking.
 
 ### Changed
