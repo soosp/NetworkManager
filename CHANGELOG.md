@@ -9,6 +9,12 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Fixed
+
+- `getActiveNtpName()` checks whether the query returned an IP address in the NTP
+  server name buffer; if so, it gives back an empty buffer and returns `false`
+  as specified in the API documentation.
+
 ## [0.1.5] - 2026-07-30
 
 ### Changed

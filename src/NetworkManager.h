@@ -777,7 +777,8 @@ public:
      * @param i   Server slot index.
      * @param out Caller buffer for the name.
      * @param len Size of @p out.
-     * @return true if a non-empty name was copied; false otherwise (out is "").
+     * @return true if a non-empty name and not IP address was copied;
+     *         false otherwise (out is "").
      */
     bool getActiveNtpName(uint8_t i, char* out, size_t len) const {
         if (!out || !len) return false;
@@ -795,7 +796,7 @@ public:
 #else
         const char* n = nullptr;
 #endif
-        if (!n || n[0] == '\0') return false;
+        if (!n || n[0] == '\0' || Host::parseIp(n)) return false;
         strncpy(out, n, len - 1);
         out[len - 1] = '\0';
         return true;
