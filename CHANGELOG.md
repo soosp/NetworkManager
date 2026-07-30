@@ -9,6 +9,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-07-30
+
 ### Fixed
 
 - `getActiveNtpName()` checks whether the query returned an IP address in the NTP
@@ -115,7 +117,8 @@ First public release.
   `EthWiFiFallback` (ESP).
 - API reference (`API.md`) and testing notes (`Testing.md`).
 
-[Unreleased]: https://github.com/soosp/NetworkManager/compare/0.1.5...HEAD
+[Unreleased]: https://github.com/soosp/NetworkManager/compare/0.1.6...HEAD
+[0.1.6]: https://github.com/soosp/NetworkManager/compare/0.5.4...0.1.6
 [0.1.5]: https://github.com/soosp/NetworkManager/compare/0.1.4...0.1.5
 [0.1.4]: https://github.com/soosp/NetworkManager/compare/0.1.3...0.1.4
 [0.1.3]: https://github.com/soosp/NetworkManager/compare/0.1.2...0.1.3
