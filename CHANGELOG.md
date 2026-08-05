@@ -9,6 +9,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-08-05
+
 ### Added
 
 - `NetworkAdapter::getLinkInfo(LinkInfo&)` — live link details an interface may
