@@ -9,6 +9,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [0.1.7] - 2026-08-05
+
 ### Fixed
 
 - `statusToJson()` did not compile with `NETWORK_PROFILE_NTP_SERVER_COUNT > 0`.
@@ -146,8 +148,9 @@ First public release.
   `EthWiFiFallback` (ESP).
 - API reference (`API.md`) and testing notes (`Testing.md`).
 
-[Unreleased]: https://github.com/soosp/NetworkManager/compare/0.1.6...HEAD
-[0.1.6]: https://github.com/soosp/NetworkManager/compare/0.5.4...0.1.6
+[Unreleased]: https://github.com/soosp/NetworkManager/compare/0.1.7...HEAD
+[0.1.7]: https://github.com/soosp/NetworkManager/compare/0.1.6...0.1.7
+[0.1.6]: https://github.com/soosp/NetworkManager/compare/0.1.5...0.1.6
 [0.1.5]: https://github.com/soosp/NetworkManager/compare/0.1.4...0.1.5
 [0.1.4]: https://github.com/soosp/NetworkManager/compare/0.1.3...0.1.4
 [0.1.3]: https://github.com/soosp/NetworkManager/compare/0.1.2...0.1.3
