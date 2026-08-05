@@ -9,6 +9,23 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Fixed
+
+- `statusToJson()` wrote a malformed `dns` array. The format string still asked
+  for four `%u` octets while the address had already been rendered to a string by
+  `ipToStr()`, so it printed the pointer as a number and then read three more
+  arguments that were never passed. Now a single `%s`.
+- `statusToJson()` produced invalid JSON for the `ntp` object: the separator was
+  emitted inside quotes and the server object was closed before its `ip` member,
+  giving `""{"name":"x"},"ip":"1.2.3.4"}`. Each server is now one object,
+  matching the documented example.
+- `statusToJson()` printed an uninitialised buffer as the server name when
+  `getActiveNtpName()` failed but the slot had an address — the documented
+  `"name":""` case. The name is emptied explicitly.
+
+  All three date from the same never-compiled branch as the 0.1.7 fixes; the
+  output has now been checked against the documented example.
+
 ## [0.1.7] - 2026-08-05
 
 ### Fixed

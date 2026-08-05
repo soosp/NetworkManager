@@ -897,7 +897,7 @@ public:
         for (uint8_t i = 0; i < NetworkProfile::DNS_SERVER_COUNT; i++) {
             if (s.dns[i] == IPAddress()) continue;
             ok = ok && NetworkProfile::ipToStr(ipStr, sizeof(ipStr), s.dns[i]);
-            ok = ok && json_fitted(snprintf_P(buf, sizeof(buf), PSTR("%s\"%u.%u.%u.%u\""),
+            ok = ok && json_fitted(snprintf_P(buf, sizeof(buf), PSTR("%s\"%s\""),
                         first ? "" : ",", ipStr), sizeof(buf));
             ok = ok && _jsonCat(out, buf, len);
             first = false;
@@ -913,9 +913,11 @@ public:
             bool firstNtp = true;
             for (uint8_t i = 0; i < NetworkProfile::NTP_SERVER_COUNT; i++) {
                 const bool hasName = getActiveNtpName(i, name, sizeof(name));
+                if (!hasName) name[0] = '\0';   // no name: report an empty one,
+                                                // not whatever was on the stack
                 const IPAddress nip = getActiveNtpIP(i);
                 if (!hasName && nip == IPAddress()) continue;   // unused slot
-                ok = ok && json_fitted(snprintf(buf, sizeof(buf), "\"%s\"{\"name\":\"%s\"}",
+                ok = ok && json_fitted(snprintf(buf, sizeof(buf), "%s{\"name\":\"%s\"",
                                      firstNtp ? "" : ",", name), sizeof(buf));
                 ok = ok && _jsonCat(out, buf, len);
                 ok = ok && NetworkProfile::ipToStr(ipStr, sizeof(ipStr), nip);
