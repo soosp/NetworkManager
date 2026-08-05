@@ -36,6 +36,30 @@
  * separately via getNtp(). When the interface is not connected, `connected` is
  * false and every address is INADDR_ANY (0.0.0.0).
  */
+/**
+ * @brief Live link details that only some interfaces have.
+ *
+ * Kept out of NetworkStatus on purpose. That struct is cached in every adapter
+ * and returned by value, so a derived "WiFiStatus" would be sliced away at both
+ * points, and widening it would grow the cache on interfaces that have none of
+ * these fields — including AVR builds.
+ *
+ * Each field carries its own validity flag: an interface may report a signal but
+ * no BSSID, and "no reading" is not the same fact as a reading of zero.
+ */
+struct LinkInfo {
+    /// 802.11 caps an SSID at 32 bytes; kept local so this header does not have
+    /// to pull in WiFiProfile on interfaces that have no Wi-Fi at all.
+    static constexpr size_t MAX_SSID_SIZE = 33;
+
+    char    ssid[MAX_SSID_SIZE] = {};                  ///< Associated network name.
+    int8_t  rssi     = 0;                              ///< Signal strength, dBm.
+    uint8_t bssid[6] = {};                             ///< Access point MAC.
+    bool    hasSsid  = false;
+    bool    hasRssi  = false;
+    bool    hasBssid = false;
+};
+
 struct NetworkStatus {
     NetworkProfile::InterfaceType interfaceType =
         NetworkProfile::InterfaceType::ETH;            ///< Which interface this describes.
@@ -238,6 +262,18 @@ public:
      * When the interface is not connected, the result has connected=false and
      * every address INADDR_ANY.
      */
+    /**
+     * @brief Fills @p out with live link details, if this interface has any.
+     *
+     * Default: none. Wi-Fi adapters override it. The manager asks the active
+     * adapter, so no downcast and no interface-type switch is needed, and a new
+     * interface type adds its own answer rather than another branch here.
+     *
+     * @param out Filled only when the function returns true.
+     * @return true if any field was set.
+     */
+    virtual bool getLinkInfo(LinkInfo& out) const { (void)out; return false; }
+
     NetworkStatus getStatus() const {
         NetworkStatus s;
         if (_lock()) { s = _status; _unlock(); }

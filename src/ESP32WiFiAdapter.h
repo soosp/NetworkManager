@@ -167,6 +167,24 @@ public:
     /** @brief Current RSSI in dBm (only meaningful while connected). */
     int getRssi() const { return WiFi.RSSI(); }
 
+    /**
+     * @brief Live link details: SSID, signal strength and the AP's BSSID.
+     *
+     * Read from the radio, not from the profile: what the device is actually
+     * associated with can differ from what was configured, and that difference
+     * is the point of a status page.
+     */
+    bool getLinkInfo(LinkInfo& out) const override {
+        if (WiFi.status() != WL_CONNECTED) return false;
+        snprintf(out.ssid, sizeof(out.ssid), "%s", WiFi.SSID().c_str());
+        out.hasSsid = out.ssid[0] != '\0';
+        out.rssi    = (int8_t)WiFi.RSSI();
+        out.hasRssi = true;
+        const uint8_t* b = WiFi.BSSID();
+        if (b) { memcpy(out.bssid, b, sizeof(out.bssid)); out.hasBssid = true; }
+        return out.hasSsid || out.hasRssi || out.hasBssid;
+    }
+
 private:
     WiFiProfile& _wifiProfile;     ///< Typed reference to the WiFi profile.
     uint32_t     _connectingStart; ///< millis() timestamp when CONNECTING began.

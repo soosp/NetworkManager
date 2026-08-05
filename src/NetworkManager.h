@@ -835,6 +835,9 @@ public:
      */
     static constexpr size_t STATUS_JSON_LEN =
         200
+        // ,"link":{"ssid":"<escaped>","rssi":-100,"bssid":"XX:..:XX"}
+        // Worst case: every SSID byte escaped as \uXXXX (6 chars each).
+        + (LinkInfo::MAX_SSID_SIZE * 6 + 64)
 #if (NETWORK_PROFILE_NTP_SERVER_COUNT > 0)
         + NetworkProfile::NTP_SERVER_COUNT * (Host::MAX_FQDN_LEN + 48)
 #endif
@@ -903,6 +906,42 @@ public:
             first = false;
         }
         ok = ok && _jsonCat_P(out, PSTR("]"), len);
+
+        // Link details the active interface may have. Asked of the adapter, so
+        // no interface-type switch here; an interface with none simply says so.
+        LinkInfo li;
+        NetworkAdapter* act = getActiveAdapter();
+        if (act && act->getLinkInfo(li)) {
+            ok = ok && _jsonCat_P(out, PSTR(",\"link\":{"), len);
+            bool firstLink = true;
+            if (li.hasSsid) {
+                // Arbitrary bytes: escape, or an SSID with a quote in it breaks
+                // the document. Appended in pieces rather than through buf,
+                // which is far too small for a fully escaped SSID.
+                char esc[LinkInfo::MAX_SSID_SIZE * 6];
+                json_escape(esc, sizeof(esc), li.ssid);
+                ok = ok && _jsonCat_P(out, PSTR("\"ssid\":\""), len);
+                ok = ok && _jsonCat(out, esc, len);
+                ok = ok && _jsonCat_P(out, PSTR("\""), len);
+                firstLink = false;
+            }
+            if (li.hasRssi) {
+                ok = ok && json_fitted(snprintf_P(buf, sizeof(buf),
+                                PSTR("%s\"rssi\":%d"), firstLink ? "" : ",",
+                                (int)li.rssi), sizeof(buf));
+                ok = ok && _jsonCat(out, buf, len);
+                firstLink = false;
+            }
+            if (li.hasBssid) {
+                ok = ok && json_fitted(snprintf_P(buf, sizeof(buf),
+                                PSTR("%s\"bssid\":\"%02X:%02X:%02X:%02X:%02X:%02X\""),
+                                firstLink ? "" : ",",
+                                li.bssid[0], li.bssid[1], li.bssid[2],
+                                li.bssid[3], li.bssid[4], li.bssid[5]), sizeof(buf));
+                ok = ok && _jsonCat(out, buf, len);
+            }
+            ok = ok && _jsonCat_P(out, PSTR("}"), len);
+        }
 
 #if (NETWORK_PROFILE_NTP_SERVER_COUNT > 0)
         if (includeNtp) {

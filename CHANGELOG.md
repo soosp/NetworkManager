@@ -9,6 +9,24 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- `NetworkAdapter::getLinkInfo(LinkInfo&)` — live link details an interface may
+  have, defaulting to none and overridden by the Wi-Fi adapters (SSID, RSSI,
+  BSSID, read from the radio rather than the profile). The manager asks the
+  active adapter, so reporting them needs no interface-type switch and a new
+  interface type answers for itself.
+- `statusToJson()` appends a `"link"` object when the active interface reports
+  any of those fields. Each field carries its own validity flag, so a missing
+  reading is left out rather than sent as a zero. The SSID is escaped through the
+  shared `json_escape()`, so a name containing a quote cannot break the document.
+
+### Changed
+
+- `STATUS_JSON_LEN` grew to cover the `"link"` object at worst case (an SSID with
+  every byte escaped).
+- Requires `NetworkProfile` >= 0.5.3.
+
 ## [0.1.8] - 2026-08-05
 
 ### Fixed
@@ -167,7 +185,8 @@ First public release.
   `EthWiFiFallback` (ESP).
 - API reference (`API.md`) and testing notes (`Testing.md`).
 
-[Unreleased]: https://github.com/soosp/NetworkManager/compare/0.1.8...HEAD
+[Unreleased]: https://github.com/soosp/NetworkManager/compare/0.2.0...HEAD
+[0.2.0]: https://github.com/soosp/NetworkManager/compare/0.1.8...0.2.0
 [0.1.8]: https://github.com/soosp/NetworkManager/compare/0.1.7...0.1.8
 [0.1.7]: https://github.com/soosp/NetworkManager/compare/0.1.6...0.1.7
 [0.1.6]: https://github.com/soosp/NetworkManager/compare/0.1.5...0.1.6
