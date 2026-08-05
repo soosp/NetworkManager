@@ -9,6 +9,35 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Fixed
+
+- `statusToJson()` did not compile with `NETWORK_PROFILE_NTP_SERVER_COUNT > 0`.
+  The NTP branch is behind a preprocessor guard and had never been built: it was
+  missing a parenthesis, referred to `NetwotkProfile` (five times) and to a
+  lower-case `ipstr`, and one `ipToStr()` call was unterminated.
+- `statusToJson()` no longer crashes on ESP8266 and AVR. `PSTR()` literals were
+  handed to `_jsonCat()` and `snprintf()`, which read their source from RAM;
+  where program space is a separate address space that reads flash byte by byte
+  and faults. Formats now use `snprintf_P()`, program-space fragments the new
+  `_jsonCat_P()`. ESP32 was unaffected, its flash being memory-mapped.
+- `statusToJson()` compared `snprintf()`'s `int` result against a `size_t` buffer
+  size (a `-Wsign-compare` warning, and a negative return would have wrapped into
+  a huge unsigned value). The checks now use `NetworkProfile::_fitted()`.
+
+### Added
+
+- `_jsonCat_P()` — the program-space counterpart of `_jsonCat()`. Kept separate
+  from the RAM version deliberately: a pointer's type does not reveal its address
+  space, so the call site has to say it.
+
+### Changed
+
+- The JSON helpers now delegate to `detail/json_tools.h` in `NetworkProfile`
+  (already a dependency) rather than carrying a private copy. `_jsonCat()` maps to
+  `json_catAtomic()`, which keeps this builder's all-or-nothing behaviour —
+  distinct from the truncating variant `NetworkProfile` uses.
+- Requires `NetworkProfile` >= 0.5.2.
+
 ## [0.1.6] - 2026-07-30
 
 ### Fixed

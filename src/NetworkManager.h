@@ -872,51 +872,55 @@ public:
         out[0] = '\0';
         const NetworkStatus s = getStatus();
         char buf[64];
+        char ipStr[16];
         bool ok = true;
 
         ok = ok && _jsonCat(out, "{", len);
         const char* ifn =
             (s.interfaceType == NetworkProfile::InterfaceType::ETH)  ? "eth"  :
             (s.interfaceType == NetworkProfile::InterfaceType::WIFI) ? "wifi" : "unknown";
-        snprintf(buf, sizeof(buf), "\"interface\":\"%s\",\"connected\":%s",
-                 ifn, s.connected ? "true" : "false");
+        ok = ok && json_fitted(snprintf_P(buf, sizeof(buf), PSTR("\"interface\":\"%s\",\"connected\":%s"),
+                 ifn, s.connected ? "true" : "false"), sizeof(buf));
         ok = ok && _jsonCat(out, buf, len);
-        snprintf(buf, sizeof(buf), ",\"ip\":\"%u.%u.%u.%u\"",
-                 s.localIP[0], s.localIP[1], s.localIP[2], s.localIP[3]);
+        ok = ok && NetworkProfile::ipToStr(ipStr, sizeof(ipStr), s.localIP);
+        ok = ok && json_fitted(snprintf_P(buf, sizeof(buf), PSTR(",\"ip\":\"%s\""), ipStr), sizeof(buf));
         ok = ok && _jsonCat(out, buf, len);
-        snprintf(buf, sizeof(buf), ",\"mask\":\"%u.%u.%u.%u\"",
-                 s.subnetMask[0], s.subnetMask[1], s.subnetMask[2], s.subnetMask[3]);
+        ok = ok && NetworkProfile::ipToStr(ipStr, sizeof(ipStr), s.subnetMask);
+        ok = ok && json_fitted(snprintf_P(buf, sizeof(buf), PSTR(",\"mask\":\"%s\""), ipStr), sizeof(buf));
         ok = ok && _jsonCat(out, buf, len);
-        snprintf(buf, sizeof(buf), ",\"gw\":\"%u.%u.%u.%u\"",
-                 s.gateway[0], s.gateway[1], s.gateway[2], s.gateway[3]);
+        ok = ok && NetworkProfile::ipToStr(ipStr, sizeof(ipStr), s.gateway);
+        ok = ok && json_fitted(snprintf_P(buf, sizeof(buf), PSTR(",\"gw\":\"%s\""), ipStr), sizeof(buf));
         ok = ok && _jsonCat(out, buf, len);
 
-        ok = ok && _jsonCat(out, ",\"dns\":[", len);
+        ok = ok && _jsonCat_P(out, PSTR(",\"dns\":["), len);
         bool first = true;
         for (uint8_t i = 0; i < NetworkProfile::DNS_SERVER_COUNT; i++) {
             if (s.dns[i] == IPAddress()) continue;
-            snprintf(buf, sizeof(buf), "%s\"%u.%u.%u.%u\"",
-                     first ? "" : ",", s.dns[i][0], s.dns[i][1], s.dns[i][2], s.dns[i][3]);
+            ok = ok && NetworkProfile::ipToStr(ipStr, sizeof(ipStr), s.dns[i]);
+            ok = ok && json_fitted(snprintf_P(buf, sizeof(buf), PSTR("%s\"%u.%u.%u.%u\""),
+                        first ? "" : ",", ipStr), sizeof(buf));
             ok = ok && _jsonCat(out, buf, len);
             first = false;
         }
-        ok = ok && _jsonCat(out, "]", len);
+        ok = ok && _jsonCat_P(out, PSTR("]"), len);
 
 #if (NETWORK_PROFILE_NTP_SERVER_COUNT > 0)
         if (includeNtp) {
-            snprintf(buf, sizeof(buf), ",\"ntp\":{\"synced\":%s,\"servers\":[",
-                     isTimeValid() ? "true" : "false");
+            ok = ok && json_fitted(snprintf(buf, sizeof(buf), ",\"ntp\":{\"synced\":%s,\"servers\":[",
+                                isTimeValid() ? "true" : "false"), sizeof(buf));
             ok = ok && _jsonCat(out, buf, len);
             char name[Host::MAX_FQDN_SIZE];
             bool firstNtp = true;
             for (uint8_t i = 0; i < NetworkProfile::NTP_SERVER_COUNT; i++) {
-                const bool      hasName = getActiveNtpName(i, name, sizeof(name));
-                const IPAddress nip     = getActiveNtpIP(i);
+                const bool hasName = getActiveNtpName(i, name, sizeof(name));
+                const IPAddress nip = getActiveNtpIP(i);
                 if (!hasName && nip == IPAddress()) continue;   // unused slot
-                ok = ok && _jsonCat(out, firstNtp ? "{\"name\":\"" : ",{\"name\":\"", len);
-                if (hasName) ok = ok && _jsonCat(out, name, len);
-                snprintf(buf, sizeof(buf), "\",\"ip\":\"%u.%u.%u.%u\"}",
-                         nip[0], nip[1], nip[2], nip[3]);
+                ok = ok && json_fitted(snprintf(buf, sizeof(buf), "\"%s\"{\"name\":\"%s\"}",
+                                     firstNtp ? "" : ",", name), sizeof(buf));
+                ok = ok && _jsonCat(out, buf, len);
+                ok = ok && NetworkProfile::ipToStr(ipStr, sizeof(ipStr), nip);
+                ok = ok && json_fitted(snprintf(buf, sizeof(buf), ",\"ip\":\"%s\"}",
+                                     ipStr), sizeof(buf));
                 ok = ok && _jsonCat(out, buf, len);
                 firstNtp = false;
             }
@@ -934,16 +938,26 @@ public:
 private:
     /**
      * @brief Bounded JSON append: concatenates @p src onto @p dst if it fits.
+     *
+     * Thin wrapper over json_catAtomic() (NetworkProfile's detail/json_tools.h),
+     * shared with NetworkProfile's builder. Nothing is written when it does not
+     * fit, which is what this builder relies on.
+     *
      * @return false (without writing) if the result would not fit in @p len.
      */
     static bool _jsonCat(char* dst, const char* src, size_t len) {
-        const size_t cur = strlen(dst);
-        if (cur >= len) return false;
-        const size_t n = strlen(src);
-        if (n + 1 > len - cur) return false;   // no room for src + NUL
-        memcpy(dst + cur, src, n + 1);
-        return true;
+        return json_catAtomic(dst, src, len);
     }
+
+    /**
+     * @brief Program-space counterpart of _jsonCat().
+     * @param src String to append, in program space (PSTR/PROGMEM).
+     * @return false (without writing) if the result would not fit in @p len.
+     */
+    static bool _jsonCat_P(char* dst, PGM_P src, size_t len) {
+        return json_catAtomic_P(dst, src, len);
+    }
+    
     NetworkManagerClass()  = default;   // Private constructor
     ~NetworkManagerClass() = default;   // Private destructor
 
