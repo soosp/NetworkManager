@@ -9,6 +9,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [0.1.8] - 2026-08-05
+
 ### Fixed
 
 - `statusToJson()` wrote a malformed `dns` array. The format string still asked
@@ -165,7 +167,8 @@ First public release.
   `EthWiFiFallback` (ESP).
 - API reference (`API.md`) and testing notes (`Testing.md`).
 
-[Unreleased]: https://github.com/soosp/NetworkManager/compare/0.1.7...HEAD
+[Unreleased]: https://github.com/soosp/NetworkManager/compare/0.1.8...HEAD
+[0.1.8]: https://github.com/soosp/NetworkManager/compare/0.1.7...0.1.8
 [0.1.7]: https://github.com/soosp/NetworkManager/compare/0.1.6...0.1.7
 [0.1.6]: https://github.com/soosp/NetworkManager/compare/0.1.5...0.1.6
 [0.1.5]: https://github.com/soosp/NetworkManager/compare/0.1.4...0.1.5
