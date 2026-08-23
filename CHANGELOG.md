@@ -51,6 +51,18 @@ and this project adheres to
   for up to a second or so after `WiFi.begin()`, and a name looked up inside that
   window still fails; the check bounds how long it lasts, it cannot close it.
 
+### Fixed (tests)
+
+- The host test harness compiles again. `statusToJson()` began using the PROGMEM
+  helpers and the shared JSON tools when the ESP8266 port landed, and
+  `NetworkProfile::ipToStr()` along with them, but the stubs under `test/` were
+  never taught about any of it — so `test_glue`, whose whole purpose is to prove
+  that the shipping header compiles, had quietly stopped doing that. The stubs
+  now provide the PROGMEM macros and working implementations of `json_fitted()`,
+  `json_catAtomic()`, `json_catAtomic_P()`, `json_escape()` and `ipToStr()`.
+  Implementations rather than empty shims: a stub that behaved differently would
+  let the test pass on output the device would never produce.
+
 ### Added
 
 - `setNtpProfile()` / `clearNtpProfile()` — the NTP servers now come from a

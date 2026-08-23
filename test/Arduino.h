@@ -5,6 +5,22 @@
 #pragma once
 #include <cstdint>
 
+// PROGMEM helpers. The shipping code uses these because ESP8266 needs strings
+// kept in flash; on a host they are plain memory, so the macros map to the
+// ordinary functions. They live here rather than being avoided in the code under
+// test, because what this harness exists to prove is that the *real* header
+// compiles — stubbing around its dependencies would defeat that.
+typedef const char* PGM_P;
+#define PSTR(s)       (s)
+#define PROGMEM
+#define snprintf_P    snprintf
+#define vsnprintf_P   vsnprintf
+#define strlen_P      strlen
+#define strncpy_P     strncpy
+#define strncat_P     strncat
+#define memcpy_P      memcpy
+#define strcmp_P      strcmp
+
 extern uint32_t g_millis;          // controllable mock clock (defined in test)
 inline uint32_t millis() { return g_millis; }
 
