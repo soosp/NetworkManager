@@ -9,6 +9,48 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Fixed
+
+- ESP8266: TX power is applied after `WiFi.begin()`, not before. `setOutputPower()`
+  acts on a running radio, so the value set before the radio started was silently
+  discarded and the profile's setting never reached the hardware on that connect.
+  The ESP32 adapter already did this and said why in its comments; the rule had
+  simply not been carried across. The hostname and the static address moved after
+  `WiFi.mode(WIFI_STA)` in the same pass, so all three act on an existing station
+  netif.
+
+  Note for anyone who meets it: `WiFi.hostname(...): lwIP error -12 on interface
+  st` with core debug enabled is **not** a symptom of this. The core assigns the
+  name to every netif unconditionally and only then attempts `dhcp_renew()` to
+  refresh an existing lease immediately, which fails on an interface that has
+  just gone down. The name is set either way and the next DHCP request carries
+  it.
+- The serving interface's DNS servers are now held against the other interfaces.
+  lwIP keeps one resolver table for the whole stack, so any interface that starts
+  or acquires a lease takes it over — measured on both platforms: `WiFi.begin()`
+  on ESP32 clears the table outright, before association, and on both an arriving
+  lease overwrites whatever was there. A primary that keeps retrying and never
+  connects therefore stripped DNS from the interface actually carrying traffic,
+  which is how a failover run lost SNTP for an hour while routing stayed correct.
+
+  The old repair read the table back and re-asserted it, which cannot work: the
+  table is the very thing that was overwritten, and it ran once per change of
+  serving adapter, while the damage arrives in between. The servers are now
+  captured while they are still ours — from the profile under static addressing,
+  from the table at connect under DHCP — and restored whenever it drifts, checked
+  once a second.
+
+  A restore also re-arms NTP: SNTP resolves its server by name once and then
+  starts name resolution again, so a server name that could not be resolved while
+  the table was empty is looked up once there is a resolver.
+
+  The gateway needs none of this and is untouched: it lives per netif, and no
+  other interface's lease moves it.
+
+  This repairs damage rather than preventing it. On ESP32 the table stays empty
+  for up to a second or so after `WiFi.begin()`, and a name looked up inside that
+  window still fails; the check bounds how long it lasts, it cannot close it.
+
 ### Added
 
 - `setNtpProfile()` / `clearNtpProfile()` — the NTP servers now come from a

@@ -84,11 +84,20 @@ public:
         // our state machine (mirrors the ESP32 adapter's approach).
         WiFi.setAutoReconnect(false);
 
-        // Apply the cached TX power (initialised from the profile, overridable
-        // at runtime via setTxPower()); re-applied here so it survives reconnects.
-        _applyTxPower();
+        // mode(WIFI_STA) first, so the two calls below act on an existing
+        // station netif rather than on nothing. TX power is the one that has to
+        // wait for begin() — see there.
+        WiFi.mode(WIFI_STA);
 
-        // Set hostname before connect
+        // Hostname before the DHCP request, so the lease carries it.
+        //
+        // With core debug on you may see
+        //   WiFi.hostname(...): lwIP error -12 on interface st
+        // on a reconnect. It is harmless: the core assigns the name to every
+        // netif unconditionally and only *then* tries dhcp_renew() to refresh an
+        // existing lease straight away, which fails on an interface that has
+        // just gone down. The name itself is set, and the next DHCP request
+        // carries it.
         char hostname[NetworkProfile::MAX_HOSTNAME_SIZE];
         _wifiProfile.getHostname(hostname, sizeof(hostname));
         WiFi.hostname(hostname);
@@ -104,11 +113,16 @@ public:
         }
 
         // Start STA
-        WiFi.mode(WIFI_STA);
 
         char password[WiFiProfile::MAX_PASSWORD_SIZE];
         _wifiProfile.getPassword(password, sizeof(password));
         WiFi.begin(ssid, password[0] != '\0' ? password : nullptr);
+
+        // TX power must be applied after begin(): setOutputPower() acts on a
+        // running radio, and a value set before it is silently discarded — the
+        // ESP32 adapter applies it at the same point for the same reason.
+        // Re-applied on every start(), so it survives reconnects.
+        _applyTxPower();
 
         _instance        = this;
         _activeCount++;
@@ -177,8 +191,10 @@ public:
      * @brief Sets the WiFi transmit power in dBm at runtime.
      *
      * Writes through to the profile (validated + lock-protected) and applies it
-     * immediately, so it also survives reconnects (start() re-applies the profile
-     * value). Persist it across reboots by saving the profile.
+     * immediately *if the radio is running*; setOutputPower() has nothing to act
+     * on otherwise, and the value then takes effect at the next connect, since
+     * start() re-applies it after begin(). Persist it across reboots by saving
+     * the profile.
      *
      * @return false if @p dBm is not accepted by the platform (nothing changed).
      */
