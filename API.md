@@ -525,7 +525,7 @@ default netif on IP events only, so with a **static address there is no DHCP
 client and no LOST_IP**, and the route could otherwise stay on the interface just
 taken out of service.
 
-Sketches need no action for either.
+Sketches need no action for any of this.
 
 ### ESP32: IPC-task stack overflow when registering the W5500 interrupt
 

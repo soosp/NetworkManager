@@ -69,7 +69,8 @@
 #endif
 
 #if defined(ARDUINO_ARCH_ESP32) || defined(ARDUINO_ARCH_ESP8266)
-#   include <lwip/dns.h>            // dns_setserver() — re-assert after teardown
+#   include <lwip/dns.h>            // dns_setserver() — hold the serving
+                                  // interface's resolver; see _rememberDns()
 #   include <lwip/ip_addr.h>        // ip_addr_t / IP_ADDR4
 #endif
 
@@ -594,7 +595,9 @@ public:
 #if defined(ARDUINO_ARCH_ESP32) || defined(ARDUINO_ARCH_ESP8266)
             if (idx >= 0) {
                 _adapters[idx]->setDefaultRoute();   // route first — DNS is useless without it
-                _reassertDns(*_adapters[idx]);
+                _rememberDns(*_adapters[idx]);
+            } else {
+                _forgetDns();
             }
 #endif
 
@@ -603,6 +606,29 @@ public:
             else          _disableNtp();
 #endif
         }
+
+#if defined(ARDUINO_ARCH_ESP32) || defined(ARDUINO_ARCH_ESP8266)
+        // Hold the resolver against the other interfaces, which overwrite the
+        // one shared table whenever they start or acquire a lease. Outside the
+        // block above on purpose: the damage arrives while the serving adapter
+        // is unchanged, so a repair keyed to that change never sees it.
+        //
+        // Once a second. This repairs damage rather than preventing it — the
+        // window an application can fall into is bounded by this interval, not
+        // closed by it.
+        if (idx >= 0 && (millis() - _dnsCheckedAt) >= 1000) {
+            _dnsCheckedAt = millis();
+            if (_enforceDns()) {
+#if NTP_PROFILE_ENABLED
+                // Re-resolve and re-arm: lwIP retries a lost request on its
+                // own, but a *name* that could not be resolved leaves the
+                // client cycling on a server it never reached. Reconfiguring
+                // starts the resolution again now that there is a resolver.
+                _configureNtp();
+#endif
+            }
+        }
+#endif
 
         // (3) Apply profile re-apply requests from other tasks (web UI etc.).
         for (uint8_t i = 0; i < _adapterCount; i++) {
@@ -1072,6 +1098,13 @@ private:
         out[0] = '\0';
         if (_ntpProfile) _ntpProfile->getServer(i, out, len);
     }
+
+#if defined(ARDUINO_ARCH_ESP32) || defined(ARDUINO_ARCH_ESP8266)
+    /// The serving interface's resolver, held so it can be put back after
+    /// another interface overwrites the one shared table.
+    IPAddress       _dnsWanted[DNS_MAX_SERVERS];
+    uint32_t        _dnsCheckedAt                           = 0;
+#endif
     uint32_t        _ntpSyncInterval                        = NETWORK_MANAGER_DEFAULT_NTP_SYNC_INTERVAL;
 
     // True once at least one sync has succeeded. On ESP it is written from the
@@ -1291,24 +1324,74 @@ private:
 
 #if defined(ARDUINO_ARCH_ESP32) || defined(ARDUINO_ARCH_ESP8266)
     /**
-     * @brief Re-installs the serving adapter's DNS servers into lwIP.
+     * @brief Records the serving interface's resolver so it can be put back.
      *
-     * lwIP's resolver table is global (not per-netif), and tearing down a
-     * superseded adapter clears it — wiping the servers of the interface that is
-     * now serving. Resolution then survives only as long as the DNS cache, after
-     * which every lookup fails (an FQDN NTP server can never be resolved again).
-     * The servers are taken from the adapter's cached status, so no new DHCP
-     * exchange is needed. Called after the deferred stops, once the topology has
-     * settled.
+     * lwIP keeps **one** DNS table for the whole stack, so whichever interface
+     * touched it last owns it — including one that is merely *trying* to
+     * connect. On ESP32 `WiFi.begin()` clears the table outright, before
+     * association, and leaves it empty for the better part of a second; on both
+     * platforms an arriving lease overwrites whatever the serving interface had.
+     * A primary that keeps retrying and never connects therefore strips DNS from
+     * the interface actually carrying traffic: routing stays perfect and nothing
+     * resolves by name.
+     *
+     * Reading the table back cannot repair that — it is the very thing that gets
+     * overwritten. Hence capturing the value while it is still ours, and putting
+     * it back whenever the table disagrees.
+     *
+     * The gateway needs none of this: it lives per netif, and no other
+     * interface's lease moves it.
      */
-    void _reassertDns(NetworkAdapter& adapter) {
-        NetworkStatus s = adapter.getStatus();
+    void _rememberDns(NetworkAdapter& adapter) {
+        NetworkProfile::NetworkConfig cfg;
+        const bool haveCfg = adapter.getProfile().getConfig(cfg);
+        NetworkStatus s    = adapter.getStatus();
+
         for (uint8_t i = 0; i < NetworkProfile::DNS_SERVER_COUNT && i < DNS_MAX_SERVERS; i++) {
-            if (s.dns[i] == IPAddress(0, 0, 0, 0)) continue;
-            ip_addr_t a;
-            IP_ADDR4(&a, s.dns[i][0], s.dns[i][1], s.dns[i][2], s.dns[i][3]);
-            dns_setserver(i, &a);
+            // Static: the profile is authoritative and stays right however often
+            // the table is trampled. DHCP: the table is correct at this instant,
+            // the lease having just been applied, so this is the one chance to
+            // capture it.
+            _dnsWanted[i] = (haveCfg && !cfg.dhcp) ? cfg.dns[i] : s.dns[i];
         }
+        _enforceDns();
+    }
+
+    /**
+     * @brief Restores the remembered servers if the table has drifted.
+     *
+     * An empty remembered value asserts nothing: "this network provides no DNS"
+     * is a real state rather than damage, and must not be fought over on every
+     * cycle.
+     *
+     * @return true if anything had to be put back.
+     */
+    bool _enforceDns() {
+        bool restored = false;
+        for (uint8_t i = 0; i < NetworkProfile::DNS_SERVER_COUNT && i < DNS_MAX_SERVERS; i++) {
+            if (_dnsWanted[i] == IPAddress(0, 0, 0, 0)) continue;
+
+            // Read back the same way the rest of this file does, so the two
+            // directions cannot disagree about byte order.
+            const ip_addr_t* cur  = dns_getserver(i);
+            const IPAddress  have = (cur && !ip_addr_isany(cur))
+                                  ? IPAddress(ip4_addr_get_u32(ip_2_ip4(cur)))
+                                  : IPAddress();
+            if (have == _dnsWanted[i]) continue;
+
+            ip_addr_t a;
+            IP_ADDR4(&a, _dnsWanted[i][0], _dnsWanted[i][1],
+                         _dnsWanted[i][2], _dnsWanted[i][3]);
+            dns_setserver(i, &a);
+            restored = true;
+        }
+        return restored;
+    }
+
+    /// Drops the remembered servers: with nothing serving there is nothing to
+    /// defend, and a stale value would only fight the next interface to connect.
+    void _forgetDns() {
+        for (uint8_t i = 0; i < DNS_MAX_SERVERS; i++) _dnsWanted[i] = IPAddress();
     }
 #endif
 
