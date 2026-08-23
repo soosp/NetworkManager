@@ -274,6 +274,24 @@ public:
      */
     virtual bool getLinkInfo(LinkInfo& out) const { (void)out; return false; }
 
+#if NTP_PROFILE_ENABLED
+    /**
+     * @brief Whether this interface should take its NTP servers from DHCP.
+     *
+     * Set by the manager before start(), and read where the interface kicks off
+     * its DHCP query — which is the only moment it can be acted on. lwIP decides
+     * from this flag whether to keep DHCP option 42 at all, so a decision made
+     * after the lease arrives comes too late: the data is already gone.
+     *
+     * Defaults to true, matching "nothing configured, so take what the network
+     * offers".
+     */
+    void setNtpFromDhcp(bool fromDhcp) { _ntpFromDhcp = fromDhcp; }
+
+    /** @copydoc setNtpFromDhcp */
+    bool ntpFromDhcp() const { return _ntpFromDhcp; }
+#endif
+
     NetworkStatus getStatus() const {
         NetworkStatus s;
         if (_lock()) { s = _status; _unlock(); }
@@ -342,6 +360,10 @@ public:
     void setOnStateChange(StateChangeCb cb) { _onStateChange = cb; }
 
 protected:
+#if NTP_PROFILE_ENABLED
+    bool _ntpFromDhcp = true;   ///< see setNtpFromDhcp()
+#endif
+
     // -------------------------------------------------------------------------
     // State transition
     // -------------------------------------------------------------------------

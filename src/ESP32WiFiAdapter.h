@@ -17,7 +17,7 @@
 #include <atomic>
 #include <cmath>
 
-#if (NETWORK_PROFILE_NTP_SERVER_COUNT > 0)
+#if NTP_PROFILE_ENABLED
 #include <esp_sntp.h>
 #endif
 
@@ -258,8 +258,8 @@ private:
                         WiFi.config(cfg.ip, cfg.gateway, cfg.mask, cfg.dns[0]);
                     }
                 } else {
-#if (NETWORK_PROFILE_NTP_SERVER_COUNT > 0)
-                    esp_sntp_servermode_dhcp(!inst->_wifiProfile.isConfiguredNtp());
+#if NTP_PROFILE_ENABLED
+                    esp_sntp_servermode_dhcp(inst->ntpFromDhcp());
 #endif
                 }
                 break;

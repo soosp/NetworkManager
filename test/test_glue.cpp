@@ -8,11 +8,11 @@
 //   2. The full event-task / loop-task wiring produces the right events end to
 //      end through the real classes.
 //
-//   NTP/Host code is excluded via NETWORK_PROFILE_NTP_SERVER_COUNT = 0.
+//   NTP/Host code is excluded via NTP_PROFILE_ENABLED = 0.
 //
 // Build: g++ -std=c++17 -O0 -Wall test_glue.cpp -o test_glue && ./test_glue
 
-#define NETWORK_PROFILE_NTP_SERVER_COUNT  0
+#define NTP_PROFILE_ENABLED  0
 #define NETWORK_MANAGER_MAX_ADAPTERS      4
 #define NETWORK_MANAGER_RECONNECT_TIMEOUT 60000
 

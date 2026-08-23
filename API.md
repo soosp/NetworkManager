@@ -70,7 +70,7 @@ Olimex ESP32-POE, ESP32-Gateway etc.), select it in 'Tools -> Board' menu in
 Arduino IDE and the ETH_PHY_* definitions are provided automatically.
 
 NTP buffer sizing is inherited from NetworkProfile / Host
-(`NETWORK_PROFILE_NTP_SERVER_COUNT`, `HOST_FQDN_LEN`, …); see
+(`NTP_PROFILE_ENABLED`, `NTP_PROFILE_SERVER_COUNT`, `HOST_FQDN_LEN`, …); see
 [Memory & fine-tuning](README.md#memory--fine-tuning) in the README.
 
 ---
@@ -208,10 +208,22 @@ Current Unix time in seconds, or `0` if not yet synced.
 
 `true` once at least one successful SNTP sync has occurred.
 
-#### `bool getNtp(uint8_t i, char* out, size_t len) const`
+#### `void setNtpProfile(NtpProfile& profile)`
 
-**Configured** NTP server `i` of the active adapter's profile, as a string.
-Returns `false` if not connected or on truncation. (NTP builds only.)
+Names the profile the servers are read from, and takes effect on the next
+connect. Device-level: a device has one clock, so the servers are its own
+property, not the interface's. Where interfaces really do reach different time
+servers, keep two profiles and call this from the CONNECTED handler — that
+applies to the handoff in progress, since events are dispatched to the
+application earlier in the same `update()` pass than NTP is configured.
+
+The profile must outlive the manager's use of it. **Configured** servers are read
+from it with `NtpProfile::getServer()`.
+
+#### `void clearNtpProfile()`
+
+Stops reading servers from a profile. Nothing is then configured, and the
+interface's DHCP-provided servers are used if its lease carries any.
 
 #### `bool getActiveNtpName(uint8_t i, char* out, size_t len) const`
 
@@ -322,6 +334,16 @@ Current lifecycle state.
 
 Same snapshot semantics as the manager accessors, but for **this** adapter
 specifically (whether or not it is the active one).
+
+#### `void setNtpFromDhcp(bool fromDhcp)` / `bool ntpFromDhcp() const`
+
+Whether this interface should accept DHCP option 42. Set by the manager
+**before** `start()`, and acted on where the interface begins its DHCP query —
+which is the only moment it can be. lwIP decides from this flag whether to keep
+the offer at all, so setting it once the lease has arrived is too late.
+
+Defaults to true, matching "nothing configured, so take what the network offers".
+Sketches do not call this; the manager derives it from the NTP profile.
 
 #### `const NetworkProfile& getProfile() const`
 
@@ -471,25 +493,37 @@ Thread-safety summary:
 - No lock is ever held across `start()`, `stop()`, or a user callback.
 - Profiles are independently thread-safe and may be read/written from any task.
 
-### Interface teardown: DNS and the default route (ESP32)
+### Holding DNS and the default route
 
-lwIP's resolver table is global rather than per-netif, and a stopped adapter keeps
-its netif — it is never destroyed, to avoid SPI re-initialisation errors. Two
-things therefore survive a fallback or restore in a broken state, and the manager
-repairs both after each teardown:
+lwIP keeps **one** resolver table for the whole stack, not one per netif, so
+whichever interface last touched it owns it — including one that is merely
+*trying* to connect. Measured on both platforms: on ESP32 `WiFi.begin()` clears
+the table outright, before association, and leaves it empty for the better part
+of a second; on both, an arriving lease overwrites whatever the serving interface
+had.
 
-- **DNS.** The teardown clears the global resolver, wiping the servers of the
-  interface that is now serving. The manager re-installs them from the serving
-  adapter's cached status. Without this, resolution works only until the DNS
-  cache expires; an FQDN NTP server then never resolves again.
+The consequence is unkind. A primary that keeps retrying and never connects
+strips DNS from the interface actually carrying traffic: routing stays perfect,
+and nothing resolves by name.
 
-- **Default route.** esp_netif re-elects the default netif on IP events only.
-  With DHCP, stopping the adapter emits LOST_IP and the re-election happens by
-  itself; with a **static address there is no DHCP client and no LOST_IP**, so
-  the default route can stay on the interface that was just taken out of service
-  — the serving interface has an IP and working DNS, yet no packet leaves the
-  device. The manager points the default route at the serving adapter
-  (NetworkAdapter::setDefaultRoute()).
+The manager therefore **remembers** the serving interface's servers while they
+are still its own (from the profile under static addressing, from the table at
+connect under DHCP) and puts them back whenever the table has drifted, checked
+once a second. A restore also re-arms SNTP, so a name that could not be resolved
+while the table was empty is looked up again. Reading the table back instead
+cannot work: it is the very thing that was overwritten.
+
+This repairs damage rather than preventing it. A name looked up inside the window
+still fails; the check bounds how long the window lasts, it cannot close it.
+
+The **gateway** needs none of this: it lives per netif, and no other interface's
+lease moves it — measured, not assumed.
+
+The **default route** is re-pointed at the serving adapter after a change of
+serving interface (`NetworkAdapter::setDefaultRoute()`). esp_netif re-elects the
+default netif on IP events only, so with a **static address there is no DHCP
+client and no LOST_IP**, and the route could otherwise stay on the interface just
+taken out of service.
 
 Sketches need no action for either.
 
@@ -575,7 +609,7 @@ DHCP option 42 capture is enabled, but the platform lwIP build caps the number
 of NTP servers taken from DHCP at **one** (ESP8266: `LWIP_DHCP_MAX_NTP_SERVERS`,
 wired into the precompiled lwIP2; ESP32: `CONFIG_LWIP_DHCP_MAX_NTP_SERVERS`, IDF
 default 1). Manually configured NTP servers are not limited this way — all
-`NETWORK_PROFILE_NTP_SERVER_COUNT` slots are used.
+`NtpProfile::SERVER_COUNT` slots are used.
 
 ---
 

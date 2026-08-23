@@ -8,8 +8,14 @@
  
 #pragma once
 
-#include "NetworkAdapter.h"
+#include "NetworkAdapter.h"        // brings in NetworkProfile.h, and with it
+                                  // NTP_PROFILE_ENABLED — so this include
+                                  // has to come before the test below
 #include "NetworkManagerCore.h"   // pure decision logic (host-testable, no Arduino)
+
+#if NTP_PROFILE_ENABLED
+#  include <NtpProfile.h>          // the servers, as a device-level setting
+#endif
 
 #ifndef NETWORK_MANAGER_MAX_ADAPTERS
 #   define NETWORK_MANAGER_MAX_ADAPTERS 2
@@ -68,7 +74,7 @@
 #endif
 
 
-#if (NETWORK_PROFILE_NTP_SERVER_COUNT > 0)
+#if NTP_PROFILE_ENABLED
 #   if defined(ARDUINO_ARCH_ESP32)
 #       include <esp_sntp.h>
 #   elif defined(ARDUINO_ARCH_ESP8266)
@@ -197,7 +203,7 @@ public:
      */
     using EventCb = void(*)(Event event, NetworkAdapter& adapter);
 
-#if (NETWORK_PROFILE_NTP_SERVER_COUNT > 0)
+#if NTP_PROFILE_ENABLED
     /**
      * @brief Callback type invoked when NTP time synchronisation completes.
      *
@@ -279,7 +285,7 @@ public:
      */
     void onEvent(EventCb cb) { _onEvent = cb; }
 
-#if (NETWORK_PROFILE_NTP_SERVER_COUNT > 0)
+#if NTP_PROFILE_ENABLED
     /**
      * @brief Registers a callback invoked when NTP time synchronisation completes.
      *
@@ -331,6 +337,30 @@ public:
      * @return true once any NTP sync has succeeded; false until then.
      */
     bool isTimeValid() const { return _timeValid; }
+
+    /**
+     * @brief Names the profile the NTP servers are read from.
+     *
+     * Device-level on purpose: a device has one clock, so the servers it
+     * synchronises from are its own property, not the interface's. Where
+     * interfaces genuinely reach different time servers, keep two profiles and
+     * call this from an event handler when the active interface changes — two
+     * objects say that plainly, where a field inside each interface's
+     * configuration said it by accident.
+     *
+     * Takes effect on the next connect; call clearNtpProfile() to stop using one.
+     *
+     * @param profile Must outlive the manager's use of it.
+     */
+    void setNtpProfile(NtpProfile& profile) { _ntpProfile = &profile; }
+
+    /**
+     * @brief Stops reading servers from a profile set earlier.
+     *
+     * Until the deprecated per-interface fields are removed, this falls back to
+     * the connected interface's own NTP settings rather than to nothing.
+     */
+    void clearNtpProfile() { _ntpProfile = nullptr; }
 
     /**
      * @brief Sets the NTP sync interval in milliseconds (all platforms).
@@ -392,7 +422,7 @@ public:
             for (uint8_t i = 0; i < _adapterCount; i++) {
                 _adapters[i]->setOnStateChange(_onAdapterStateChange);
             }
-#if (NETWORK_PROFILE_NTP_SERVER_COUNT > 0)
+#if NTP_PROFILE_ENABLED
 #if defined(ARDUINO_ARCH_ESP32)
             sntp_set_time_sync_notification_cb(_ntpSyncCallback);
 #elif defined(ARDUINO_ARCH_ESP8266)
@@ -401,6 +431,12 @@ public:
 #endif
         }
         _unlock();
+#if NTP_PROFILE_ENABLED
+        // Before start(), not after: the interface acts on this when it kicks
+        // off its DHCP query, and lwIP decides from it whether to keep option 42
+        // at all. Told afterwards, the offer has already been discarded.
+        if (ok) _adapters[0]->setNtpFromDhcp(!_ntpConfigured());
+#endif
         if (ok) ok = _adapters[0]->start();
         return ok;
     }
@@ -434,7 +470,7 @@ public:
         }
         _appliedIdx = -1;
         _unlock();
-#if (NETWORK_PROFILE_NTP_SERVER_COUNT > 0)
+#if NTP_PROFILE_ENABLED
         _disableNtp();
 #endif
         for (uint8_t i = 0; i < count; i++) {
@@ -511,7 +547,7 @@ public:
             _adapters[i]->update();
         }
 
-#if (NETWORK_PROFILE_NTP_SERVER_COUNT > 0) && defined(ARDUINO_ARCH_AVR)
+#if NTP_PROFILE_ENABLED && defined(ARDUINO_ARCH_AVR)
         // Drive the AVR SNTP client. Like the adapter updates above, this runs
         // on the loop task and outside our lock: it touches UDP/DNS hardware and
         // may invoke the onNtpSync callback, neither of which may hold _mutex.
@@ -562,8 +598,8 @@ public:
             }
 #endif
 
-#if (NETWORK_PROFILE_NTP_SERVER_COUNT > 0)
-            if (idx >= 0) _configureNtp(*_adapters[idx]);
+#if NTP_PROFILE_ENABLED
+            if (idx >= 0) _configureNtp();
             else          _disableNtp();
 #endif
         }
@@ -590,7 +626,7 @@ public:
         //     here on the loop task, so it is run directly (never deferred).
         //   - DISCONNECTED is delivered to the application like any other event.
         if (d.startIdx >= 0 && d.startIdx < (int8_t)_adapterCount) {
-#if (NETWORK_PROFILE_NTP_SERVER_COUNT > 0) && defined(ARDUINO_ARCH_ESP8266)
+#if NTP_PROFILE_ENABLED && defined(ARDUINO_ARCH_ESP8266)
             // Enable DHCP-provided NTP (option 42) capture BEFORE the adapter's
             // DHCP handshake starts, so the offered servers are stored as the
             // lease is acquired. Doing this only at CONNECTED (in _configureNtp)
@@ -598,7 +634,11 @@ public:
             // and the option-42 data is gone, so DHCP-based NTP never syncs in
             // fallback. Set from the to-be-started adapter's own profile.
             sntp_servermode_dhcp(
-                _adapters[d.startIdx]->getProfile().isConfiguredNtp() ? 0 : 1);
+                _ntpConfigured() ? 0 : 1);
+#endif
+#if NTP_PROFILE_ENABLED
+            _adapters[d.startIdx]->setNtpFromDhcp(
+                !_ntpConfigured());
 #endif
             _adapters[d.startIdx]->start();
         }
@@ -744,15 +784,17 @@ public:
         return _adapters[i]->getMac(mac, source);
     }
 
-#if (NETWORK_PROFILE_NTP_SERVER_COUNT > 0)
+#if NTP_PROFILE_ENABLED
     /**
      * @brief Copies NTP server @p i of the active adapter's profile into @p out.
      *
-     * Unlike the address getters, NTP is a configured profile value (not a live
-     * netif property), so it is read from the active adapter's profile rather
-     * than the status snapshot.
+     * Unlike the address getters, NTP is a configured value rather than a live
+     * netif property, so it comes from the NtpProfile handed over with
+     * setNtpProfile() — a device-level setting — and not from the status
+     * snapshot. Without such a profile there is nothing to report and this
+     * returns false.
      *
-     * @param i   NTP index in [0, NETWORK_PROFILE_NTP_SERVER_COUNT).
+     * @param i   NTP index in [0, NtpProfile::SERVER_COUNT).
      * @param out Caller buffer for the server FQDN/IP string.
      * @param len Size of @p out.
      * @return true on success; false if not connected or on truncation.
@@ -761,13 +803,14 @@ public:
         if (out && len) out[0] = '\0';
         NetworkAdapter* active = getActiveAdapter();
         if (!active) return false;
-        return active->getProfile().getNtp(i, out, len);
+        _ntpServerAt(i, out, len);
+        return out[0] != '\0';
     }
 
     /**
      * @brief Copies the *active* SNTP server name for slot @p i into @p out.
      *
-     * Unlike getNtp() — which returns the server configured in the profile —
+     * Unlike NtpProfile::getServer() — which returns what was configured —
      * this reads the live SNTP client, so it also reflects DHCP-provided
      * servers (option 42). A name is present for host-name servers (e.g.
      * "pool.ntp.org") and empty for numeric servers (DHCP delivers addresses);
@@ -792,7 +835,8 @@ public:
         char nbuf[Host::MAX_FQDN_SIZE];
         NetworkAdapter* active = getActiveAdapter();
         const char* n = nullptr;
-        if (active && active->getProfile().getNtp(i, nbuf, sizeof(nbuf))) n = nbuf;
+        if (active) { _ntpServerAt(i, nbuf, sizeof(nbuf));
+                      if (nbuf[0] != '\0') n = nbuf; }
 #else
         const char* n = nullptr;
 #endif
@@ -838,8 +882,8 @@ public:
         // ,"link":{"ssid":"<escaped>","rssi":-100,"bssid":"XX:..:XX"}
         // Worst case: every SSID byte escaped as \uXXXX (6 chars each).
         + (LinkInfo::MAX_SSID_SIZE * 6 + 64)
-#if (NETWORK_PROFILE_NTP_SERVER_COUNT > 0)
-        + NetworkProfile::NTP_SERVER_COUNT * (Host::MAX_FQDN_LEN + 48)
+#if NTP_PROFILE_ENABLED
+        + NtpProfile::SERVER_COUNT * (Host::MAX_FQDN_LEN + 48)
 #endif
         ;
     /** @brief Buffer size (including NUL) for statusToJson(). */
@@ -853,7 +897,7 @@ public:
      * contains interface, connected, ip, mask, gw and a dns array (populated
      * slots only). With @p includeNtp, an \"ntp\" object is appended carrying the
      * overall synced flag and a \"servers\" array of the live SNTP servers (up to
-     * NETWORK_PROFILE_NTP_SERVER_COUNT). Each server reports its live name and its
+     * NtpProfile::SERVER_COUNT). Each server reports its live name and its
      * resolved/numeric ip; a DHCP-provided server shows an empty name.
      *
      * Example (includeNtp = true):
@@ -943,14 +987,14 @@ public:
             ok = ok && _jsonCat_P(out, PSTR("}"), len);
         }
 
-#if (NETWORK_PROFILE_NTP_SERVER_COUNT > 0)
+#if NTP_PROFILE_ENABLED
         if (includeNtp) {
             ok = ok && json_fitted(snprintf(buf, sizeof(buf), ",\"ntp\":{\"synced\":%s,\"servers\":[",
                                 isTimeValid() ? "true" : "false"), sizeof(buf));
             ok = ok && _jsonCat(out, buf, len);
             char name[Host::MAX_FQDN_SIZE];
             bool firstNtp = true;
-            for (uint8_t i = 0; i < NetworkProfile::NTP_SERVER_COUNT; i++) {
+            for (uint8_t i = 0; i < NtpProfile::SERVER_COUNT; i++) {
                 const bool hasName = getActiveNtpName(i, name, sizeof(name));
                 if (!hasName) name[0] = '\0';   // no name: report an empty one,
                                                 // not whatever was on the stack
@@ -1007,12 +1051,27 @@ private:
     EventCb         _onEvent                                = nullptr; ///< Set once before begin(); not modified at runtime.
     int8_t          _appliedIdx                             = -1;
 
-    #if (NETWORK_PROFILE_NTP_SERVER_COUNT > 0)
+    #if NTP_PROFILE_ENABLED
     NtpSyncCb       _onNtpSync                              = nullptr; ///< Set once before begin(); not modified at runtime.
 
     // Configured sync interval (ms). Stored on every platform: AVR's poll loop
     // reads it directly; ESP also pushes it into the SDK (see setNtpSyncInterval
     // and _configureNtp). Starts at the compile-time default.
+    // The servers, as a device-level setting. Both the ESP and the AVR path ask
+    // through the two accessors below, so neither has to know where they live.
+    NtpProfile* _ntpProfile = nullptr;
+
+    /// True if any server is configured. With no profile set there is no NTP:
+    /// nothing else supplies the servers.
+    bool _ntpConfigured() const {
+        return _ntpProfile && _ntpProfile->isConfigured();
+    }
+
+    /// Reads server @p i; leaves @p out empty for an unused slot.
+    void _ntpServerAt(uint8_t i, char* out, size_t len) const {
+        out[0] = '\0';
+        if (_ntpProfile) _ntpProfile->getServer(i, out, len);
+    }
     uint32_t        _ntpSyncInterval                        = NETWORK_MANAGER_DEFAULT_NTP_SYNC_INTERVAL;
 
     // True once at least one sync has succeeded. On ESP it is written from the
@@ -1029,7 +1088,7 @@ private:
     enum class AvrNtpState : uint8_t { IDLE, WAIT_REPLY };
 
     EthernetUDP     _avrNtpUdp;                                ///< UDP socket, opened per sync and closed after.
-    NetworkProfile* _avrNtpProfile       = nullptr;            ///< Active profile to read getNtp(0) from; null = NTP off.
+    bool            _avrNtpOn            = false;              ///< Any server configured, from either source.
     IPAddress       _avrNtpServerIp;                           ///< Cached resolved server address.
     bool            _avrNtpServerKnown   = false;              ///< True once _avrNtpServerIp is valid.
     AvrNtpState     _avrNtpState         = AvrNtpState::IDLE;  ///< Request/reply state machine.
@@ -1253,15 +1312,20 @@ private:
     }
 #endif
 
-#if (NETWORK_PROFILE_NTP_SERVER_COUNT > 0)
-    /** @brief Configures NTP synchronisation for the given adapter's profile. */
-    void _configureNtp(NetworkAdapter& adapter) {
+#if NTP_PROFILE_ENABLED
+    /**
+     * @brief Points SNTP at the configured servers.
+     *
+     * Takes no adapter: the servers are a device-level setting now, so what to
+     * synchronise from does not depend on which interface came up. Still called
+     * on connect, because that is when SNTP has to be (re)started.
+     */
+    void _configureNtp() {
 #if defined(ARDUINO_ARCH_ESP32) || defined(ARDUINO_ARCH_ESP8266)
-        NetworkProfile& profile = adapter.getProfile();
-        if (!profile.isConfiguredNtp()) {
+        if (!_ntpConfigured()) {
             configTime(0, 0, NULL, NULL, NULL);
         } else {
-            static char ntp[NetworkProfile::NTP_SERVER_COUNT][Host::MAX_FQDN_SIZE];
+            static char ntp[NtpProfile::SERVER_COUNT][Host::MAX_FQDN_SIZE];
 
             // Pass only the slots that actually hold a server, compacted from
             // index 0. An empty slot must be handed to configTime() as NULL, not
@@ -1271,19 +1335,19 @@ private:
             // keeps the active-server accessors reporting from slot 0 upwards.
             const char* srv[3] = { NULL, NULL, NULL };
             uint8_t n = 0;
-            for (uint8_t i = 0; i < NetworkProfile::NTP_SERVER_COUNT && n < 3; i++) {
-                profile.getNtp(i, ntp[i], Host::MAX_FQDN_SIZE);
+            for (uint8_t i = 0; i < NtpProfile::SERVER_COUNT && n < 3; i++) {
+                _ntpServerAt(i, ntp[i], Host::MAX_FQDN_SIZE);
                 if (ntp[i][0] != '\0') srv[n++] = ntp[i];
             }
             configTime(0, 0, srv[0], srv[1], srv[2]);
         }
 #if defined(ARDUINO_ARCH_ESP8266)
-        // Use DHCP-provided NTP servers (option 42) when the profile carries no
-        // servers of its own; otherwise prefer the configured servers. This is
+        // Use DHCP-provided NTP servers (option 42) when nothing is configured;
+        // otherwise prefer the configured servers. This is
         // the ESP8266 counterpart of esp_sntp_servermode_dhcp() on ESP32. The
         // lwip2 hook compiles to a no-op macro when SNTP_GET_SERVERS_FROM_DHCP
         // is disabled in the build, so the call is always safe.
-        sntp_servermode_dhcp(profile.isConfiguredNtp() ? 0 : 1);
+        sntp_servermode_dhcp(_ntpConfigured() ? 0 : 1);
 #endif
         // configTime() (re)starts SNTP at the IDF default cadence, so re-assert
         // any interval the application configured. The restart makes the new
@@ -1295,16 +1359,15 @@ private:
         // ESP8266: the poll interval reaches lwip via the weak hook the sketch
         // installs by including NetworkManagerNtpSyncHook.h (in one TU).
 #elif defined(ARDUINO_ARCH_AVR)
-        // Arm the AVR SNTP client for the adapter that just connected: remember
-        // its profile, drop any cached server address (re-resolve on the new
-        // network), and request a sync on the next update() iteration.
-        NetworkProfile& profile = adapter.getProfile();
-        _avrNtpProfile     = profile.isConfiguredNtp() ? &profile : nullptr;
+        // Arm the AVR SNTP client for the network that just came up: drop any
+        // cached server address (the name may resolve differently here), and
+        // request a sync on the next update() iteration.
+        _avrNtpOn          = _ntpConfigured();
         _avrNtpServerKnown   = false;
         _avrNtpRetryInterval = 0;                        // fresh connect -> normal cadence
         _avrNtpState       = AvrNtpState::IDLE;
         _avrNtpLastSyncMs  = 0;                          // 0 -> due immediately
-        _avrNtpDue         = (_avrNtpProfile != nullptr);
+        _avrNtpDue         = _avrNtpOn;
 #endif
     }
 
@@ -1321,7 +1384,7 @@ private:
 #elif defined(ARDUINO_ARCH_AVR)
         if (_avrNtpState == AvrNtpState::WAIT_REPLY) _avrNtpUdp.stop();  // release socket
         _avrNtpState   = AvrNtpState::IDLE;
-        _avrNtpProfile = nullptr;                  // _avrNtpPoll() early-returns
+        _avrNtpOn = false;                         // _avrNtpPoll() early-returns
         _avrNtpDue     = false;
 #endif
     }
@@ -1415,7 +1478,7 @@ private:
         _getNetworkManagerInstance()._handleStateChange(adapter, state);
     }
 
-#if (NETWORK_PROFILE_NTP_SERVER_COUNT > 0)
+#if NTP_PROFILE_ENABLED
 #if defined(ARDUINO_ARCH_ESP32)
     /**
      * @brief SNTP sync callback registered via sntp_set_time_sync_notification_cb().
@@ -1489,7 +1552,8 @@ private:
     }
 
     /**
-     * @brief Resolves getNtp(0) into _avrNtpServerIp (literal IP or DNS lookup).
+     * @brief Resolves the first configured server into _avrNtpServerIp
+     *        (literal IP or DNS lookup).
      *
      * DNS resolution via the Ethernet stack is blocking, so the result is cached
      * (_avrNtpServerKnown) and only re-resolved when the active adapter changes.
@@ -1498,7 +1562,7 @@ private:
      */
     bool _avrNtpResolveServer() {
         char host[Host::MAX_FQDN_SIZE];
-        _avrNtpProfile->getNtp(0, host, Host::MAX_FQDN_SIZE);
+        _ntpServerAt(0, host, Host::MAX_FQDN_SIZE);
         if (host[0] == '\0') return false;
 
         // Literal IP: resolve locally, without ever touching DNSClient. This
@@ -1543,7 +1607,7 @@ private:
 
     /** @brief Non-blocking SNTP client state machine; call once per update(). */
     void _avrNtpPoll() {
-        if (_avrNtpProfile == nullptr) return;  // NTP not configured on active adapter
+        if (!_avrNtpOn) return;                 // NTP not configured
 
         // Link-driven gating: on W5500 the adapter leaves CONNECTED as soon as
         // linkStatus() reports LinkOFF, so _getConnectedIndex() < 0 means "no
@@ -1676,7 +1740,7 @@ private:
 // ESP8266/lwip2 SDK quirk; ESP32 and AVR need nothing extra.
 
 // Setting NTP poll-interval is always available on ESP32 and AVR
-#if (NETWORK_PROFILE_NTP_SERVER_COUNT > 0)
+#if NTP_PROFILE_ENABLED
 #if defined(ARDUINO_ARCH_ESP32) || defined(ARDUINO_ARCH_AVR)
 #define NETWORK_MANAGER_NTP_SYNC_INTERVAL_SETTER 1
 #endif

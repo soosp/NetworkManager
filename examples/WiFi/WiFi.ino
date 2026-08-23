@@ -23,10 +23,13 @@
 //
 // Number of configurable NTP servers (default 3 on ESP). Set to 0 to disable NTP
 // entirely; all NTP-specific code below is wrapped in #if guards.
-// #define NETWORK_PROFILE_NTP_SERVER_COUNT 3
+// #define NTP_PROFILE_SERVER_COUNT 3   // 1..3; NTP_PROFILE_ENABLED 0 leaves NTP out
 
 // Include adapter and manager headers AFTER the configuration macros above.
 #include <WiFiAdapter.h>
+#if NTP_PROFILE_ENABLED
+#  include <NtpProfile.h>
+#endif
 #include <NetworkManager.h>
 
 // Needed on ESP8266 for setNtpSyncInterval(); a harmless no-op elsewhere.
@@ -51,7 +54,7 @@ static const IPAddress STATIC_DNS    (192, 168,   0,   1);
 // Interface priority (relevant when combined with other adapters).
 static const uint8_t   WIFI_PRIO = 0;
 
-#if (NETWORK_PROFILE_NTP_SERVER_COUNT > 0)
+#if NTP_PROFILE_ENABLED
 // Set NTP_DHCP true to take the NTP server from DHCP (option 42) instead of the
 // static server below.
 static const bool      NTP_DHCP  = false;
@@ -70,7 +73,7 @@ WiFiAdapter wifiAdapter(wifiProfile);
 // Callbacks
 // -----------------------------------------------------------------------------
 
-#if (NETWORK_PROFILE_NTP_SERVER_COUNT > 0)
+#if NTP_PROFILE_ENABLED
 void onTimeSync() {
     Serial.println(F("NTP: synced"));
     time_t now = time(nullptr);
@@ -152,6 +155,13 @@ void onNetworkEvent(NetworkManagerClass::Event event, NetworkAdapter& adapter) {
 // Setup
 // -----------------------------------------------------------------------------
 
+#if NTP_PROFILE_ENABLED
+// The NTP servers are a device-level setting, so they live in their own profile
+// rather than in each interface's. NetworkManager applies them on connect.
+NtpProfile ntpProfile;
+static constexpr char NTP_NS[] = "ntp";
+#endif
+
 void setup() {
     Serial.begin(115200);
     while (!Serial) delay(10);
@@ -180,23 +190,36 @@ void setup() {
             cfg.gateway = STATIC_GATEWAY;
             cfg.dns[0]  = STATIC_DNS;
         }
-#if (NETWORK_PROFILE_NTP_SERVER_COUNT > 0)
-        if (!USE_DHCP || !NTP_DHCP) strncpy(cfg.ntp[0], NTP, Host::MAX_FQDN_LEN);
-#endif
         wifiProfile.setConfig(cfg);
+
+        #if NTP_PROFILE_ENABLED
+        // One server is enough for a demo; the profile holds
+        // NtpProfile::SERVER_COUNT of them. Leaving it empty on a DHCP network lets
+        // the lease provide one instead (option 42), which is what NTP_DHCP selects.
+        #  if defined(ARDUINO_ARCH_AVR)
+        ntpProfile.setServer(NTP, 0);        // AVR has no DHCP-provided NTP
+        #  else
+        if (!USE_DHCP || !NTP_DHCP) ntpProfile.setServer(NTP, 0);
+        #  endif
+        ntpProfile.saveCfg(NTP_NS);
+        #endif
 
         Serial.println(F("Saving configuration."));
         wifiProfile.saveCfg("wifi");
     }
 
     NetworkManager.onEvent(onNetworkEvent);
-#if (NETWORK_PROFILE_NTP_SERVER_COUNT > 0)
+#if NTP_PROFILE_ENABLED
     NetworkManager.onNtpSync(onTimeSync);
 #endif
 
     NetworkManager.addAdapter(wifiAdapter);
+    #if NTP_PROFILE_ENABLED
+    ntpProfile.loadCfg(NTP_NS);
+    NetworkManager.setNtpProfile(ntpProfile);
+    #endif
     NetworkManager.begin();
-#if (NETWORK_PROFILE_NTP_SERVER_COUNT > 0)
+#if NTP_PROFILE_ENABLED
     NetworkManager.setNtpSyncInterval(NTP_POLL);
 #endif
 

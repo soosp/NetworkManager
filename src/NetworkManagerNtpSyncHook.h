@@ -41,10 +41,10 @@
 
 #pragma once
 
-// NETWORK_PROFILE_NTP_SERVER_COUNT must be defined before including NetworkManager.h
+// NTP_PROFILE_ENABLED must be defined before including NetworkManager.h
 // because NetworkManager.h includes NetworkProfile.h via NetworkAdapter.h, so
 // it is safe to check it here.
-#if defined(ARDUINO_ARCH_ESP8266) && (NETWORK_PROFILE_NTP_SERVER_COUNT > 0)
+#if defined(ARDUINO_ARCH_ESP8266) && NTP_PROFILE_ENABLED
 
 /**
  * @brief lwip2 SNTP poll-interval hook (strong override of the core's weak default).
@@ -53,6 +53,12 @@
  * 15 s so the function always honours its own "not less than 15000" contract
  * even if NETWORK_MANAGER_DEFAULT_NTP_SYNC_INTERVAL was set lower (the runtime setter
  * already clamps, but the compile-time default macro does not).
+ *
+ * This sets the *polling* cadence only. lwIP consults it in sntp_recv(), after a
+ * valid response, to schedule the next routine request; a request that goes
+ * unanswered is retried by the client itself on SNTP_RECV_TIMEOUT and
+ * SNTP_RETRY_TIMEOUT instead. So lengthening this interval does not make a lost
+ * request expensive — it only spaces out the successful ones.
  *
  * No extern "C": on the ESP8266 core lwip2 references the C++-mangled symbol.
  */

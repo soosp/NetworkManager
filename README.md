@@ -13,14 +13,14 @@ Full API details are in [API.md](API.md).
 NetworkManager          (singleton — connection orchestration)
 ├── NetworkManagerCore  (pure decision logic — host-testable)
 ├── EthAdapter          (platform adapter — hardware lifecycle)
-│   └── EthProfile      (configuration — IP, DNS, NTP, priority, MAC)
+│   └── EthProfile      (configuration — IP, DNS, priority, MAC)
 └── WiFiAdapter
     └── WiFiProfile
 ```
 
 **Profile** ([NetworkProfile](https://github.com/soosp/NetworkProfile)) is a
 pure, thread-safe data class holding one interface's configuration (IP, DNS,
-NTP, hostname, MAC, priority, TX power). It makes no hardware calls and can be
+hostname, MAC, priority, TX power). It makes no hardware calls and can be
 read or written at any time, including while the interface is active.
 
 **Adapter** wraps a platform interface (WiFi, Ethernet) and owns its lifecycle
@@ -89,10 +89,12 @@ ESP32 or ESP8266 unchanged.
 
 ```cpp
 #include <WiFiAdapter.h>
+#include <NtpProfile.h>
 #include <NetworkManager.h>
 
 WiFiProfile wifiProfile;
 WiFiAdapter wifiAdapter(wifiProfile);
+NtpProfile  ntpProfile;
 
 void onNetworkEvent(NetworkManagerClass::Event event, NetworkAdapter&) {
     if (event == NetworkManagerClass::Event::CONNECTED) {
@@ -119,10 +121,13 @@ void setup() {
     // unqualified, or copy with sizeof(dest)-1.
     strncpy(cfg.ssid,     "MyNetwork",    MAX_SSID_LEN);
     strncpy(cfg.password, "MyPassword",   WiFiProfile::MAX_PASSWORD_LEN);
-    strncpy(cfg.ntp[0],   "pool.ntp.org", Host::MAX_FQDN_LEN);
     wifiProfile.setConfig(cfg);
 
     NetworkManager.onEvent(onNetworkEvent);
+    // The NTP servers are a device-level setting: one NtpProfile, handed to the
+    // manager, rather than a copy inside every interface's configuration.
+    ntpProfile.setServer("pool.ntp.org", 0);
+    NetworkManager.setNtpProfile(ntpProfile);
     NetworkManager.onNtpSync(onNtpSync);
     NetworkManager.addAdapter(wifiAdapter);
     NetworkManager.begin();
@@ -182,11 +187,23 @@ if (NetworkManager.statusToJson(js, sizeof(js), /*includeNtp=*/true))
 a `dns` array; with `includeNtp` it appends an `ntp` object (`synced` + a
 `servers` array). See [API.md](API.md#json-status).
 
+## NTP servers
+
+The servers come from an `NtpProfile` handed over with `setNtpProfile()` — a
+device-level setting, since a device has one clock. Where interfaces genuinely
+reach different time servers, keep two profiles and switch from the CONNECTED
+handler: that applies to the handoff in progress, because events are dispatched
+to the application earlier in the same `update()` pass than NTP is configured.
+The FallbackTestRunner example does exactly this.
+
+With no profile set, nothing is configured and the interface's DHCP-provided
+servers are used, if the lease carries any.
+
 ## NTP (two views)
 
 NTP information is available at two layers:
 
-- **Configured** — what you set in the profile: `getNtp(i, buf, len)`.
+- **Configured** — what you set: `NtpProfile::getServer(i, buf, len)`.
 - **Active** — what the SNTP client is actually using, read live:
   `getActiveNtpName(i, buf, len)` and `getActiveNtpIP(i)`.
 
@@ -200,8 +217,20 @@ one translation unit** (normally your `.ino`) for it to take effect — see
 [API.md](API.md#networkmanagerntpsynchookh).
 
 > **DHCP provides at most one NTP server** on both platforms (an lwIP build
-> limit). Manually configured servers use all `NETWORK_PROFILE_NTP_SERVER_COUNT`
+> limit). Manually configured servers use all `NtpProfile::SERVER_COUNT`
 > slots.
+
+**The serving interface's DNS is held against the others.** lwIP keeps one
+resolver table for the whole stack, so any interface that starts or acquires a
+lease takes it over — on ESP32 `WiFi.begin()` clears it outright, before
+association. A primary that keeps retrying and never connects would otherwise
+strip DNS from the interface actually carrying traffic, which looks like working
+routing with nothing resolvable by name. The manager remembers the serving
+interface's servers and restores them, checked once a second; a restore also
+re-arms SNTP, so a name it could not resolve is looked up again. This repairs
+damage rather than preventing it: a name looked up inside that window still
+fails. The gateway needs no such care — it lives per netif and no other
+interface's lease moves it.
 
 **AVR NTP resolves synchronously.** With a host-name NTP server, the first sync
 after each connect performs a blocking DNS lookup inside `update()`, briefly
@@ -263,7 +292,7 @@ struct layouts across `.cpp` files are an ODR violation (undefined behaviour).
   ```ini
   build_flags =
       -D HOST_FQDN_LEN=32
-      -D NETWORK_PROFILE_NTP_SERVER_COUNT=1
+      -D NTP_PROFILE_SERVER_COUNT=1
   ```
 
 - **Arduino IDE, ESP8266** — add a file named `<SketchName>.ino.globals.h` next
@@ -272,7 +301,7 @@ struct layouts across `.cpp` files are an ODR violation (undefined behaviour).
   ```cpp
   // MySketch.ino.globals.h
   #define HOST_FQDN_LEN                    32
-  #define NETWORK_PROFILE_NTP_SERVER_COUNT 1
+  #define NTP_PROFILE_SERVER_COUNT 1
   ```
 
 - **Arduino IDE, ESP32** — add a file named `build_opt.h` in the sketch folder.
@@ -281,7 +310,7 @@ struct layouts across `.cpp` files are an ODR violation (undefined behaviour).
 
   ```txt
   -DHOST_FQDN_LEN=32
-  -DNETWORK_PROFILE_NTP_SERVER_COUNT=1
+  -DNTP_PROFILE_SERVER_COUNT=1
   ```
 
 - **Arduino IDE, AVR** — there is no per-sketch global mechanism. Either keep the
@@ -310,12 +339,13 @@ via `platformio.ini` `build_flags`), identically in every translation unit.
 |Macro|Default|Controls|Impact|
 |--|--:|--|--|
 |`HOST_FQDN_LEN`|253|Max NTP-server FQDN length|**Largest lever** — every FQDN buffer is `HOST_FQDN_LEN + 1`, and they appear per profile, in the SNTP setup, and in `statusToJson()`.|
-|`NETWORK_PROFILE_NTP_SERVER_COUNT`|0 (AVR) / 3 (ESP)|NTP server slots (`0` = NTP compiled out)|One FQDN buffer per slot, per profile, plus one per slot in the SNTP setup and JSON.|
+|`NTP_PROFILE_ENABLED`|0 (AVR) / 1 (ESP)|Whether NTP exists in the build|Off removes the SNTP support too — on AVR a UDP client, not just buffers.|
+|`NTP_PROFILE_SERVER_COUNT`|3 (ESP32) / 1 elsewhere|NTP server slots, 1 to 3|One FQDN buffer per slot, per profile, plus one per slot in the SNTP setup and JSON.|
 |`NETWORK_PROFILE_DNS_SERVER_COUNT`|1 (AVR) / 2 (ESP)|DNS slots per profile|4 bytes/slot (minor).|
 |`NETWORK_PROFILE_HOSTNAME_LEN`|63|Max host name length|One buffer of this size per profile.|
 
 `NetworkManager.STATUS_JSON_SIZE` (the `statusToJson()` buffer size) is
-**derived**: `200 + NETWORK_PROFILE_NTP_SERVER_COUNT * (HOST_FQDN_LEN + 1 + 48)`.
+**derived**: `200 + NTP_PROFILE_SERVER_COUNT * (HOST_FQDN_LEN + 1 + 48)`.
 
 ### Where the FQDN buffers go
 
@@ -339,9 +369,10 @@ build, so the multi-slot storage only pays off for manually configured servers.
 - **Shorten `HOST_FQDN_LEN` first.** `pool.ntp.org` is 12 chars; a literal IP is
   15. `HOST_FQDN_LEN = 32` (or `64`) cuts every FQDN buffer to roughly an eighth
   of the default with no functional loss.
-- **Set `NETWORK_PROFILE_NTP_SERVER_COUNT` to what you use.** `1` is plenty for
-  most deployments and removes two thirds of the NTP storage versus the ESP
-  default of `3`; `0` compiles NTP out entirely (the AVR default).
+- **Set `NTP_PROFILE_SERVER_COUNT` to what you use.** `1` is plenty for most
+  deployments and removes two thirds of the NTP storage versus the ESP32 default
+  of `3`. To leave NTP out altogether, set `NTP_PROFILE_ENABLED` to `0` — that is
+  a different question from how many servers to store, and the AVR default.
 - **AVR (ATmega2560, 8 KB SRAM):** keep NTP off unless needed; if you enable it,
   pair it with a small `HOST_FQDN_LEN` — a 253-byte FQDN alone would size a ~1 KB
   `statusToJson()` buffer.
@@ -350,7 +381,7 @@ build, so the multi-slot storage only pays off for manually configured servers.
 ```cpp
 // Lean configuration — short NTP names or literal IPs, a single server
 #define HOST_FQDN_LEN                    32
-#define NETWORK_PROFILE_NTP_SERVER_COUNT 1
+#define NTP_PROFILE_SERVER_COUNT         1
 #define NETWORK_PROFILE_DNS_SERVER_COUNT 1
 
 #include <EthAdapter.h>
@@ -359,8 +390,8 @@ build, so the multi-slot storage only pays off for manually configured servers.
 ```
 
 ```cpp
-// AVR without NTP — no FQDN storage at all (the AVR default)
-#define NETWORK_PROFILE_NTP_SERVER_COUNT 0
+// No NTP at all — no FQDN storage, and no SNTP client either (the AVR default)
+#define NTP_PROFILE_ENABLED 0
 ```
 
 The NetworkProfile README's *Memory Optimisation* section has the full

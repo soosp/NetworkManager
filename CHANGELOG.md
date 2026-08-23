@@ -9,6 +9,44 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- `setNtpProfile()` / `clearNtpProfile()` — the NTP servers now come from a
+  device-level `NtpProfile` (NetworkProfile >= 0.7.0) rather than from whichever
+  interface happens to be up. A device has one clock; where interfaces genuinely
+  reach different time servers, keep two profiles and set the one that applies.
+  No profile set now means no NTP at all: the per-interface fields it used to
+  fall back to are gone from NetworkProfile.
+- `NetworkAdapter::setNtpFromDhcp()` — the manager tells an interface, *before*
+  starting it, whether to accept DHCP option 42. It has to be before: lwIP
+  decides from that flag whether to keep the offer at all, so setting it once the
+  lease has arrived is too late. The ESP32 adapters read the flag instead of
+  consulting their own profile, which could not see a device-level one.
+
+### Changed
+
+- Guards test `NTP_PROFILE_ENABLED` — "is there NTP in this build" — instead of
+  reading a server count and inferring it from the count being non-zero. Buffers
+  and loop bounds take `NtpProfile::SERVER_COUNT`, so the size comes from the
+  class that owns it. Requires NetworkProfile >= 0.7.0. A build that disabled NTP
+  with `NTP_PROFILE_SERVER_COUNT=0` sets `NTP_PROFILE_ENABLED=0` instead; the old
+  form is refused with a message naming the replacement, and the examples and the
+  host test harness are updated.
+- Requires `NetworkProfile` >= 0.7.0, which no longer stores NTP servers per
+  interface. Examples updated: they declare an `NtpProfile`, save the server to
+  its own namespace, and hand it to the manager before `begin()`.
+- `NTP_PROFILE_SERVER_COUNT` replaces `NETWORK_PROFILE_NTP_SERVER_COUNT`
+  throughout, including the examples and the host test harness. The old name is
+  reported by a `#warning` from NetworkProfile rather than ignored.
+
+### Documentation
+
+- README and API.md follow the changes: `setNtpProfile()` replaces reading the
+  servers from a profile, `setNtpFromDhcp()` is documented on the adapter, and
+  the teardown section is rewritten around what was measured rather than what was
+  assumed — the teardown does *not* clear DNS; another interface starting or
+  getting a lease does.
+
 ## [0.2.0] - 2026-08-05
 
 ### Added

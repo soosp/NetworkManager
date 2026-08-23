@@ -21,7 +21,7 @@
 #include <atomic>
 #include <esp_netif.h>
 
-#if (NETWORK_PROFILE_NTP_SERVER_COUNT > 0)
+#if NTP_PROFILE_ENABLED
 #include <esp_sntp.h>
 #endif
 
@@ -149,9 +149,9 @@ public:
             } else {
                 esp_netif_t* netif = ETH.netif();
                 if (netif) esp_netif_dhcpc_start(netif);
-#if (NETWORK_PROFILE_NTP_SERVER_COUNT > 0)
+#if NTP_PROFILE_ENABLED
                 if (ETH.linkUp()) {
-                    esp_sntp_servermode_dhcp(!_ethProfile.isConfiguredNtp());
+                    esp_sntp_servermode_dhcp(ntpFromDhcp());
                 }
 #endif
             }
@@ -366,9 +366,9 @@ private:
                     }
                 }
                 // DHCP: client was already started in start(); nothing to do here.
-#if (NETWORK_PROFILE_NTP_SERVER_COUNT > 0)
+#if NTP_PROFILE_ENABLED
                 if (cfg.dhcp) {
-                    esp_sntp_servermode_dhcp(!inst->_ethProfile.isConfiguredNtp());
+                    esp_sntp_servermode_dhcp(inst->ntpFromDhcp());
                 }
 #endif
                 break;

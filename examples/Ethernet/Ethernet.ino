@@ -91,10 +91,14 @@
 //
 // Note: DHCP-provided NTP (DHCP option 42) is available on ESP only. On AVR a
 // server is always configured explicitly.
-// #define NETWORK_PROFILE_NTP_SERVER_COUNT 1
+// #define NTP_PROFILE_ENABLED 1        // AVR: NTP is opt-in
+// #define NTP_PROFILE_SERVER_COUNT 1   // 1..3; one is the default off ESP32
 
 // Include adapter and manager headers AFTER the configuration macros above.
 #include <EthAdapter.h>
+#if NTP_PROFILE_ENABLED
+#  include <NtpProfile.h>
+#endif
 #include <NetworkManager.h>
 
 // Needed on ESP8266 for setNtpSyncInterval(); a harmless no-op elsewhere.
@@ -116,7 +120,7 @@ static const IPAddress STATIC_DNS    (192, 168,   0,   1);
 // Interface priority (relevant when combined with other adapters).
 static const uint8_t   ETH_PRIO  = 0;
 
-#if (NETWORK_PROFILE_NTP_SERVER_COUNT > 0)
+#if NTP_PROFILE_ENABLED
 // NTP server used when configured explicitly. On AVR prefer a literal IP to
 // avoid a blocking DNS lookup on the first sync.
 static const char*     NTP       = "pool.ntp.org";
@@ -139,7 +143,7 @@ EthAdapter ethAdapter(ethProfile);
 // Callbacks
 // -----------------------------------------------------------------------------
 
-#if (NETWORK_PROFILE_NTP_SERVER_COUNT > 0)
+#if NTP_PROFILE_ENABLED
 // Fired by the SNTP client on each successful sync. getEpoch() returns the Unix
 // epoch (seconds since 1970), kept advancing between syncs.
 void onTimeSync() {
@@ -231,6 +235,13 @@ void onNetworkEvent(NetworkManagerClass::Event event, NetworkAdapter& adapter) {
 // Setup
 // -----------------------------------------------------------------------------
 
+#if NTP_PROFILE_ENABLED
+// The NTP servers are a device-level setting, so they live in their own profile
+// rather than in each interface's. NetworkManager applies them on connect.
+NtpProfile ntpProfile;
+static constexpr char NTP_NS[] = "ntp";
+#endif
+
 void setup() {
     Serial.begin(115200);
     while (!Serial) delay(10);
@@ -257,28 +268,36 @@ void setup() {
             cfg.gateway = STATIC_GATEWAY;
             cfg.dns[0]  = STATIC_DNS;
         }
-#if (NETWORK_PROFILE_NTP_SERVER_COUNT > 0)
-    #if defined(ARDUINO_ARCH_AVR)
-        // AVR has no DHCP-provided NTP — always configure a server.
-        strncpy(cfg.ntp[0], NTP, Host::MAX_FQDN_LEN);
-    #else
-        if (!USE_DHCP || !NTP_DHCP) strncpy(cfg.ntp[0], NTP, Host::MAX_FQDN_LEN);
-    #endif
-#endif
         ethProfile.setConfig(cfg);
+
+        #if NTP_PROFILE_ENABLED
+        // One server is enough for a demo; the profile holds
+        // NtpProfile::SERVER_COUNT of them. Leaving it empty on a DHCP network lets
+        // the lease provide one instead (option 42), which is what NTP_DHCP selects.
+        #  if defined(ARDUINO_ARCH_AVR)
+        ntpProfile.setServer(NTP, 0);        // AVR has no DHCP-provided NTP
+        #  else
+        if (!USE_DHCP || !NTP_DHCP) ntpProfile.setServer(NTP, 0);
+        #  endif
+        ntpProfile.saveCfg(NTP_NS);
+        #endif
 
         Serial.println(F("Saving configuration."));
         ethProfile.saveCfg("eth");
     }
 
     NetworkManager.onEvent(onNetworkEvent);
-#if (NETWORK_PROFILE_NTP_SERVER_COUNT > 0)
+#if NTP_PROFILE_ENABLED
     NetworkManager.onNtpSync(onTimeSync);
 #endif
 
     NetworkManager.addAdapter(ethAdapter);
+    #if NTP_PROFILE_ENABLED
+    ntpProfile.loadCfg(NTP_NS);
+    NetworkManager.setNtpProfile(ntpProfile);
+    #endif
     NetworkManager.begin();
-#if (NETWORK_PROFILE_NTP_SERVER_COUNT > 0)
+#if NTP_PROFILE_ENABLED
     NetworkManager.setNtpSyncInterval(NTP_POLL);
 #endif
 }

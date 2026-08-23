@@ -94,7 +94,7 @@
 // compiled, thereby reducing resource requirements. In this case, you have to
 // remove or comment out all NTP-related code sections from the sketch, as
 // these were not placed within #if guards to improve the sketch’s readability.
-// #define NETWORK_PROFILE_NTP_SERVER_COUNT 0
+// #define NTP_PROFILE_ENABLED 0
 
 // Include headers of adapters and NetworkManager after configuration macros
 // are defined.

@@ -102,6 +102,7 @@
 #include <EthAdapter.h>
 #include <WiFiAdapter.h>
 #include <NetworkManager.h>
+#include <NtpProfile.h>
 #include <NetworkManagerNtpSyncHook.h>   // ESP8266 needs this for setNtpSyncInterval()
 
 // Preferences is native on ESP32 and provided by the external Preferences
@@ -131,10 +132,19 @@ static const IPAddress WIFI_STATIC_MASK   (255, 255, 255,   0);
 static const IPAddress WIFI_STATIC_GATEWAY(192, 168,   0,   1);
 static const IPAddress WIFI_STATIC_DNS    (192, 168,   0,   1);
 
-// Different servers per interface make it obvious in the log which profile the
-// SNTP client is actually using after a handoff.
+// Deliberately different servers per interface, so getActiveNtpName() proves the
+// handoff really re-pointed SNTP rather than merely leaving it running.
 static const char*     ETH_NTP        = "pool.ntp.org";
 static const char*     WIFI_NTP       = "time.cloudflare.com";
+
+//
+// The servers are a device-level setting now, so this is the two-instance case
+// the API is meant for: one profile per interface, swapped from the CONNECTED
+// handler. That works because the manager dispatches events to the application
+// before it configures NTP in the same update() pass — so the profile chosen
+// here is the one applied for this handoff, not the next.
+NtpProfile ethNtp;
+NtpProfile wifiNtp;
 
 // Poll interval for the rig. Short enough that a lost first request still
 // retries inside the NTP timeout below — so a "slow" sync shows up as a large
@@ -335,6 +345,13 @@ void onNetworkEvent(NetworkManagerClass::Event event, NetworkAdapter& adapter) {
         default:                                       return;
     }
     g_evIface   = adapter.getProfile().getInterfaceType();
+
+    // Point the manager at this interface's servers before it configures SNTP.
+    // Safe to do here: events are dispatched earlier in the same update() pass
+    // than _configureNtp(), so this handoff already uses the profile chosen now.
+    NetworkManager.setNtpProfile(
+        g_evIface == NetworkProfile::InterfaceType::WIFI ? wifiNtp : ethNtp);
+
     g_evAtMs    = millis();
     g_evPending = true;
 }
@@ -612,7 +629,7 @@ static void configureProfiles() {
         eth.ip = ETH_STATIC_IP; eth.mask = ETH_STATIC_MASK;
         eth.gateway = ETH_STATIC_GATEWAY; eth.dns[0] = ETH_STATIC_DNS;
     }
-    strncpy(eth.ntp[0], ETH_NTP, Host::MAX_FQDN_LEN);
+
     ethProfile.setConfig(eth);
 
     WiFiProfile::WiFiConfig wifi;
@@ -624,7 +641,7 @@ static void configureProfiles() {
     }
     strncpy(wifi.ssid,     WIFI_SSID,     sizeof(wifi.ssid)     - 1);
     strncpy(wifi.password, WIFI_PASSWORD, sizeof(wifi.password) - 1);
-    strncpy(wifi.ntp[0],   WIFI_NTP,      Host::MAX_FQDN_LEN);
+
     wifiProfile.setConfig(wifi);
 }
 
@@ -700,6 +717,11 @@ void setup() {
 
     configureProfiles();
 
+    // One profile per interface, so the sync that follows a handoff names the
+    // server belonging to the interface that took over.
+    ethNtp.setServer(ETH_NTP,   0);
+    wifiNtp.setServer(WIFI_NTP, 0);
+    NetworkManager.setNtpProfile(ethNtp);      // starting point; swapped per event
     NetworkManager.onEvent(onNetworkEvent);
     NetworkManager.onNtpSync(onTimeSync);
     NetworkManager.addAdapter(ethAdapter);
