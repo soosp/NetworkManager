@@ -1227,13 +1227,6 @@ private:
     }
 
     /**
-     * @brief Builds a Core snapshot of the current adapter set.
-     *
-     * Reads each adapter's state (a lock-free atomic load) and canProbe()
-     * (which may read hardware, e.g. ETH.linkUp()). The snapshot is a frozen
-     * copy: the Core reasons about it without ever touching live adapters.
-     */
-    /**
      * @brief Maps an adapter State to the Core's State.
      *
      * The two enums are deliberately separate types (the adapter base and the
@@ -1252,6 +1245,13 @@ private:
         return NetworkManagerCore::State::IDLE;
     }
 
+    /**
+     * @brief Builds a Core StateView of the current adapter set.
+     *
+     * Reads each adapter's state (a lock-free atomic load) and canProbe()
+     * (which may read hardware, e.g. ETH.linkUp()). The snapshot is a frozen
+     * copy: the Core reasons about it without ever touching live adapters.
+     */
     NetworkManagerCore::StateView _snapshot() const {
         NetworkManagerCore::StateView v;
         v.count = _adapterCount;

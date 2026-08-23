@@ -27,16 +27,6 @@
 #endif
 
 /**
- * @brief Immutable snapshot of an interface's live network parameters.
- *
- * Returned by NetworkAdapter::getStatus() and NetworkManagerClass::getStatus().
- * Holds the values that are only meaningful while connected and that DHCP may
- * change at runtime: address, mask, gateway and DNS servers. NTP is NOT included
- * — it is a configured profile value, not a live netif property, and is read
- * separately via getNtp(). When the interface is not connected, `connected` is
- * false and every address is INADDR_ANY (0.0.0.0).
- */
-/**
  * @brief Live link details that only some interfaces have.
  *
  * Kept out of NetworkStatus on purpose. That struct is cached in every adapter
@@ -60,6 +50,17 @@ struct LinkInfo {
     bool    hasBssid = false;
 };
 
+/**
+ * @brief Immutable snapshot of an interface's live network parameters.
+ *
+ * Returned by NetworkAdapter::getStatus() and NetworkManagerClass::getStatus().
+ * Holds the values that are only meaningful while connected and that DHCP may
+ * change at runtime: address, mask, gateway and DNS servers. NTP is NOT included
+ * — it is a configured value rather than a live netif property, and belongs to
+ * the device instead of the interface: read it from the NtpProfile, or through
+ * NetworkManagerClass::getNtp(). When the interface is not connected, `connected` is
+ * false and every address is INADDR_ANY (0.0.0.0).
+ */
 struct NetworkStatus {
     NetworkProfile::InterfaceType interfaceType =
         NetworkProfile::InterfaceType::ETH;            ///< Which interface this describes.
@@ -255,14 +256,6 @@ public:
     const NetworkProfile& getProfile() const { return _profile; }
 
     /**
-     * @brief Returns a consistent snapshot of the interface's live parameters.
-     *
-     * The snapshot is captured by the adapter when it acquires or renews an
-     * address, so reading it never touches hardware and is safe under any lock.
-     * When the interface is not connected, the result has connected=false and
-     * every address INADDR_ANY.
-     */
-    /**
      * @brief Fills @p out with live link details, if this interface has any.
      *
      * Default: none. Wi-Fi adapters override it. The manager asks the active
@@ -292,6 +285,14 @@ public:
     bool ntpFromDhcp() const { return _ntpFromDhcp; }
 #endif
 
+    /**
+     * @brief Returns a consistent snapshot of the interface's live parameters.
+     *
+     * The snapshot is captured by the adapter when it acquires or renews an
+     * address, so reading it never touches hardware and is safe under any lock.
+     * When the interface is not connected, the result has connected=false and
+     * every address INADDR_ANY.
+     */
     NetworkStatus getStatus() const {
         NetworkStatus s;
         if (_lock()) { s = _status; _unlock(); }
