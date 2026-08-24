@@ -40,7 +40,7 @@ details.
 
 |Macro|Default|Description|
 |--|--:|--|
-|`NETWORK_MANAGER_MAX_ADAPTERS`|`4`|Maximum number of adapters (valid range 1–8).|
+|`NETWORK_MANAGER_MAX_ADAPTERS`|`2`|Maximum number of adapters (valid range 1–8).|
 |`NETWORK_MANAGER_RECONNECT_TIMEOUT`|`60000`|Milliseconds with nothing connected before `DISCONNECTED` is emitted. `0` disables it.|
 |`NETWORK_MANAGER_MUTEX_TIMEOUT`|`1000`|Mutex acquisition timeout, ms (ESP32 only; ESP8266/AVR use no lock).|
 |`NETWORK_MANAGER_DEFAULT_NTP_SYNC_INTERVAL`|`3600000`|Default SNTP poll interval, ms (1 h). Overridable at runtime with `setNtpSyncInterval()`.|

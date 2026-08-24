@@ -268,7 +268,7 @@ Define macros **before** including any library header (or in `platformio.ini`
 
 |Macro|Default|Description|
 |--|--:|--|
-|`NETWORK_MANAGER_MAX_ADAPTERS`|`4`|Maximum adapters (1–8).|
+|`NETWORK_MANAGER_MAX_ADAPTERS`|`2`|Maximum adapters (1–8).|
 |`NETWORK_MANAGER_RECONNECT_TIMEOUT`|`60000`|ms before `DISCONNECTED`; 0 disables.|
 |`NETWORK_MANAGER_MUTEX_TIMEOUT`|`1000`|Mutex timeout, ms (ESP32 only).|
 |`NETWORK_MANAGER_DEFAULT_NTP_SYNC_INTERVAL`|`3600000`|Default SNTP interval, ms.|

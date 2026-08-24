@@ -8,6 +8,33 @@
  
 #pragma once
 
+// -----------------------------------------------------------------------------
+// Adapter-table size and reconnect timeout — settled BEFORE the includes.
+//
+// NetworkManagerCore.h carries its own #ifndef fallbacks for both, because it is
+// also compiled on its own (see test/nm_harness.cpp) and must stand up without
+// this header. Whichever file is reached first therefore wins, and this one is
+// only reached first if the defaults are stated above the include. Stated below
+// it, as they were, the Core's fallbacks won instead and NETWORK_MANAGER_MAX_
+// ADAPTERS silently came out as the Core's 4 rather than the 2 documented here.
+//
+// Keep the two sets of fallbacks in step: they are duplicated on purpose (the
+// Core has no dependency to inherit them from), not by accident.
+// -----------------------------------------------------------------------------
+#ifndef NETWORK_MANAGER_MAX_ADAPTERS
+#   define NETWORK_MANAGER_MAX_ADAPTERS 2
+#endif
+
+// Checked here rather than after the includes: the Core sizes StateView's arrays
+// from this macro, so an out-of-range value has to be rejected before it does.
+#if (NETWORK_MANAGER_MAX_ADAPTERS < 1) || (NETWORK_MANAGER_MAX_ADAPTERS > 8)
+#   error "NETWORK_MANAGER_MAX_ADAPTERS must be in the [1, 8] range!"
+#endif
+
+#ifndef NETWORK_MANAGER_RECONNECT_TIMEOUT
+#   define NETWORK_MANAGER_RECONNECT_TIMEOUT 60000
+#endif
+
 #include "NetworkAdapter.h"        // brings in NetworkProfile.h, and with it
                                   // NTP_PROFILE_ENABLED — so this include
                                   // has to come before the test below
@@ -15,18 +42,6 @@
 
 #if NTP_PROFILE_ENABLED
 #  include <NtpProfile.h>          // the servers, as a device-level setting
-#endif
-
-#ifndef NETWORK_MANAGER_MAX_ADAPTERS
-#   define NETWORK_MANAGER_MAX_ADAPTERS 2
-#endif
-
-#if (NETWORK_MANAGER_MAX_ADAPTERS < 1) || (NETWORK_MANAGER_MAX_ADAPTERS > 8)
-#   error "NETWORK_MANAGER_MAX_ADAPTERS must be in the [1, 8] range!"
-#endif
-
-#ifndef NETWORK_MANAGER_RECONNECT_TIMEOUT
-#   define NETWORK_MANAGER_RECONNECT_TIMEOUT 60000
 #endif
 
 #ifndef NETWORK_MANAGER_PROBE_INTERVAL

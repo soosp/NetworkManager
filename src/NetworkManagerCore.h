@@ -41,8 +41,12 @@
 #   include <cstdint>
 #endif
 
+// Fallbacks, duplicated from NetworkManager.h on purpose: this header is also
+// compiled on its own (test/nm_harness.cpp) and has no dependency to inherit
+// them from. Keep the values in step with NetworkManager.h -- whichever header
+// a translation unit reaches first is the one that decides.
 #ifndef NETWORK_MANAGER_MAX_ADAPTERS
-#   define NETWORK_MANAGER_MAX_ADAPTERS 4
+#   define NETWORK_MANAGER_MAX_ADAPTERS 2
 #endif
 
 #ifndef NETWORK_MANAGER_RECONNECT_TIMEOUT
