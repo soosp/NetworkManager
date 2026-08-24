@@ -74,6 +74,25 @@ inline size_t json_escape(char* dst, size_t dstLen, const char* src) {
     return w;
 }
 
+/// Escaping append with no scratch buffer; truncates rather than overrunning.
+/// Not atomic: what fits is kept and false is returned.
+inline bool json_cat_esc(char* dst, const char* src, size_t dstSize) {
+    if (!dst || !src) return false;
+    size_t w = strlen(dst);
+    while (*src) {
+        const unsigned char c = (unsigned char)*src++;
+        if (c >= 0x20 && c <= 0x7E && c != '"' && c != '\\') {
+            if (w + 1 >= dstSize) { dst[w] = '\0'; return false; }
+            dst[w++] = (char)c;
+        } else {
+            if (w + 6 >= dstSize) { dst[w] = '\0'; return false; }
+            w += snprintf(dst + w, dstSize - w, "\\u%04X", c);
+        }
+    }
+    dst[w] = '\0';
+    return true;
+}
+
 class NetworkProfile {
 public:
     enum class InterfaceType : uint8_t { UNKNOWN, WIFI, ETH };

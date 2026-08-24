@@ -35,6 +35,20 @@ and this project adheres to
 
 ### Fixed
 
+- `statusToJson()` dropped the whole document when an NTP server name ran past
+  53 characters. Each server's `name` field was formatted through the shared
+  64-byte scratch buffer, but a name may be a full-length FQDN — the very length
+  `STATUS_JSON_LEN` budgets for. A short write fails the build outright, so one
+  long name cost the entire object rather than just its own field, and the caller
+  got an empty string with no indication why. The name is now appended in pieces
+  straight into the output, as the SSID beside it already was, and escaped on the
+  way, so a name carrying anything a host name should not can no longer break the
+  syntax either. Measured: names failed from 54 characters up before, and are
+  carried to the full 253 now.
+
+  The NTP block was also the one part of this builder still formatting with
+  RAM-resident literals while everything around it used `PSTR()`; it now matches,
+  which returns a little flash on AVR.
 - `getNtp()` dereferenced a null output buffer. The initial clear was guarded
   (`if (out && len)`), but the read that followed it was not, so a null pointer
   or a zero length faulted instead of reporting false. The private
@@ -82,6 +96,11 @@ and this project adheres to
 
 ### Fixed (tests)
 
+- The `test/` stub of `NetworkProfile.h` gained `json_cat_esc()`, which
+  `statusToJson()` now calls. Same drift as the entry below: the stub
+  reimplements the JSON helpers rather than shimming them, so every helper the
+  shipping header starts using has to be added here too, or `test_glue` stops
+  proving that the header compiles.
 - The host test harness compiles again. `statusToJson()` began using the PROGMEM
   helpers and the shared JSON tools when the ESP8266 port landed, and
   `NetworkProfile::ipToStr()` along with them, but the stubs under `test/` were

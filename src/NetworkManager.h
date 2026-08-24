@@ -1049,7 +1049,7 @@ public:
 
 #if NTP_PROFILE_ENABLED
         if (includeNtp) {
-            ok = ok && json_fitted(snprintf(buf, sizeof(buf), ",\"ntp\":{\"synced\":%s,\"servers\":[",
+            ok = ok && json_fitted(snprintf_P(buf, sizeof(buf), PSTR(",\"ntp\":{\"synced\":%s,\"servers\":["),
                                 isTimeValid() ? "true" : "false"), sizeof(buf));
             ok = ok && _jsonCat(out, buf, len);
             char name[Host::MAX_FQDN_SIZE];
@@ -1060,16 +1060,23 @@ public:
                                                 // not whatever was on the stack
                 const IPAddress nip = getActiveNtpIP(i);
                 if (!hasName && nip == IPAddress()) continue;   // unused slot
-                ok = ok && json_fitted(snprintf(buf, sizeof(buf), "%s{\"name\":\"%s\"",
-                                     firstNtp ? "" : ",", name), sizeof(buf));
-                ok = ok && _jsonCat(out, buf, len);
+                // Appended in pieces, as the SSID above is, and for the same
+                // reason: a server name is a full-length FQDN's worth of bytes,
+                // which buf cannot hold. Formatted through buf, a name beyond
+                // ~50 characters overflowed it, and since a short write fails
+                // the whole build, one long name cost the entire document
+                // rather than just its own field.
+                ok = ok && _jsonCat_P(out, firstNtp ? PSTR("{\"name\":\"")
+                                                    : PSTR(",{\"name\":\""), len);
+                ok = ok && _jsonCatEsc(out, name, len);
+                ok = ok && _jsonCat_P(out, PSTR("\""), len);
                 ok = ok && NetworkProfile::ipToStr(ipStr, sizeof(ipStr), nip);
-                ok = ok && json_fitted(snprintf(buf, sizeof(buf), ",\"ip\":\"%s\"}",
+                ok = ok && json_fitted(snprintf_P(buf, sizeof(buf), PSTR(",\"ip\":\"%s\"}"),
                                      ipStr), sizeof(buf));
                 ok = ok && _jsonCat(out, buf, len);
                 firstNtp = false;
             }
-            ok = ok && _jsonCat(out, "]}", len);
+            ok = ok && _jsonCat_P(out, PSTR("]}"), len);
         }
 #else
         (void)includeNtp;
@@ -1101,6 +1108,22 @@ private:
      */
     static bool _jsonCat_P(char* dst, PGM_P src, size_t len) {
         return json_catAtomic_P(dst, src, len);
+    }
+
+    /**
+     * @brief Escaping append for arbitrary text, without a scratch buffer.
+     *
+     * Thin wrapper over json_cat_esc(). Unlike _jsonCat()/_jsonCat_P() this one
+     * is NOT atomic: an over-long @p src leaves what fit and reports false. That
+     * is fine here and only here — statusToJson() discards @p dst wholesale the
+     * moment any step reports false, so a partial append is never observed. Do
+     * not reuse it in a builder that keeps going after a failure.
+     *
+     * @param src Text to escape and append, in RAM.
+     * @return false if @p src did not fit (partial content left in @p dst).
+     */
+    static bool _jsonCatEsc(char* dst, const char* src, size_t len) {
+        return json_cat_esc(dst, src, len);
     }
     
     NetworkManagerClass()  = default;   // Private constructor
