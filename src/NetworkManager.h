@@ -1092,6 +1092,17 @@ private:
     EventCb         _onEvent                                = nullptr; ///< Set once before begin(); not modified at runtime.
     int8_t          _appliedIdx                             = -1;
 
+#if defined(ARDUINO_ARCH_ESP32) || defined(ARDUINO_ARCH_ESP8266)
+    // The serving interface's resolver, held so it can be put back after another
+    // interface overwrites the one shared table. Outside the NTP block below on
+    // purpose: lwIP's single DNS table is trampled whether or not this build has
+    // any NTP in it, and update() defends it under a plain ESP guard. Declared
+    // under NTP_PROFILE_ENABLED, as these were, NTP_PROFILE_ENABLED=0 on an ESP
+    // left update() referring to members that did not exist.
+    IPAddress       _dnsWanted[DNS_MAX_SERVERS];
+    uint32_t        _dnsCheckedAt                           = 0;
+#endif
+
     #if NTP_PROFILE_ENABLED
     NtpSyncCb       _onNtpSync                              = nullptr; ///< Set once before begin(); not modified at runtime.
 
@@ -1114,12 +1125,6 @@ private:
         if (_ntpProfile) _ntpProfile->getServer(i, out, len);
     }
 
-#if defined(ARDUINO_ARCH_ESP32) || defined(ARDUINO_ARCH_ESP8266)
-    /// The serving interface's resolver, held so it can be put back after
-    /// another interface overwrites the one shared table.
-    IPAddress       _dnsWanted[DNS_MAX_SERVERS];
-    uint32_t        _dnsCheckedAt                           = 0;
-#endif
     uint32_t        _ntpSyncInterval                        = NETWORK_MANAGER_DEFAULT_NTP_SYNC_INTERVAL;
 
     // True once at least one sync has succeeded. On ESP it is written from the
