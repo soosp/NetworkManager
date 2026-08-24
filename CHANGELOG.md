@@ -32,6 +32,26 @@ and this project adheres to
 
 ### Fixed
 
+- The adapters' static member definitions are `inline`, so a project may include
+  an adapter header from more than one translation unit. Twelve definitions
+  across `ESP32WiFiAdapter.h`, `ESP32EthAdapter.h` and `ESP8266WiFiAdapter.h`
+  sat at namespace scope without it, which means every including unit emitted
+  its own and a second `.cpp` failed to link with `multiple definition of
+  ESP32WiFiAdapter::_instance` and friends. `#pragma once` does not help: it
+  suppresses a repeated include within one unit, not across units.
+
+  A single-file Arduino sketch never met this — everything lands in one unit
+  there — and even a multi-file project usually includes an adapter from just one
+  `.cpp`, which is why it survived this long. It was nonetheless a limit nobody
+  chose and nobody wrote down. Where such a constraint is real this library says
+  so, as `NetworkManagerNtpSyncHook.h` does ("exactly one translation unit"), so
+  silence here read as "include it wherever you like" — and now that is true.
+
+  `inline` keeps the header-only layout that the Arduino IDE's build order
+  requires — moving the definitions to a `.cpp` would have traded one problem
+  for a worse one. Both cores compile at C++17 or later, so it is available on
+  each. AVR is unaffected; `ESP8266EthAdapter.h` and `AVREthernetAdapter.h` have
+  no such definitions.
 - `isConnected()` and `getActiveAdapter()` no longer take the manager's mutex,
   which they held to no effect and at a cost. Both do nothing but call
   `_getConnectedIndex()` and return what it found, and that needs no lock: the

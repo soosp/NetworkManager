@@ -298,12 +298,28 @@ private:
 
 // -----------------------------------------------------------------------------
 // Static member definitions
+//
+// inline (C++17): these are definitions, so without it every translation unit
+// that includes this header emits its own and the link fails with "multiple
+// definition of". A single-file Arduino sketch never hits that — everything
+// lands in one unit — and even a multi-file project usually includes an adapter
+// from just one .cpp, which is why this went unnoticed. It was a limit nobody
+// chose and nobody wrote down: where such a constraint is real this library
+// says so, as NetworkManagerNtpSyncHook.h does ("exactly one translation
+// unit"), so silence here read as "include it wherever you like".
+//
+// (The multi-file note at the top of this file is about something else: making
+// the configuration macros visible to every unit alike. It does not ask anyone
+// to include this header twice.)
+//
+// inline keeps the header-only layout the Arduino IDE's build order requires
+// while letting the linker fold the definitions into one object.
 // -----------------------------------------------------------------------------
 
-ESP8266WiFiAdapter* ESP8266WiFiAdapter::_instance         = nullptr;
-uint8_t             ESP8266WiFiAdapter::_activeCount      = 0;
-bool                ESP8266WiFiAdapter::_eventRegistered  = false;
-WiFiEventHandler    ESP8266WiFiAdapter::_gotIpHandler;
-WiFiEventHandler    ESP8266WiFiAdapter::_disconnectedHandler;
+inline ESP8266WiFiAdapter* ESP8266WiFiAdapter::_instance         = nullptr;
+inline uint8_t             ESP8266WiFiAdapter::_activeCount      = 0;
+inline bool                ESP8266WiFiAdapter::_eventRegistered  = false;
+inline WiFiEventHandler    ESP8266WiFiAdapter::_gotIpHandler;
+inline WiFiEventHandler    ESP8266WiFiAdapter::_disconnectedHandler;
 
 #endif // ARDUINO_ARCH_ESP8266

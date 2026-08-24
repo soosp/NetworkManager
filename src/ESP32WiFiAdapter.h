@@ -297,10 +297,26 @@ private:
 
 // -----------------------------------------------------------------------------
 // Static member definitions
+//
+// inline (C++17): these are definitions, so without it every translation unit
+// that includes this header emits its own and the link fails with "multiple
+// definition of". A single-file Arduino sketch never hits that — everything
+// lands in one unit — and even a multi-file project usually includes an adapter
+// from just one .cpp, which is why this went unnoticed. It was a limit nobody
+// chose and nobody wrote down: where such a constraint is real this library
+// says so, as NetworkManagerNtpSyncHook.h does ("exactly one translation
+// unit"), so silence here read as "include it wherever you like".
+//
+// (The multi-file note at the top of this file is about something else: making
+// the configuration macros visible to every unit alike. It does not ask anyone
+// to include this header twice.)
+//
+// inline keeps the header-only layout the Arduino IDE's build order requires
+// while letting the linker fold the definitions into one object.
 // -----------------------------------------------------------------------------
 
-std::atomic<ESP32WiFiAdapter*> ESP32WiFiAdapter::_instance        { nullptr };
-std::atomic<uint8_t>           ESP32WiFiAdapter::_activeCount     { 0 };
-bool                           ESP32WiFiAdapter::_eventRegistered = false;
+inline std::atomic<ESP32WiFiAdapter*> ESP32WiFiAdapter::_instance        { nullptr };
+inline std::atomic<uint8_t>           ESP32WiFiAdapter::_activeCount     { 0 };
+inline bool                           ESP32WiFiAdapter::_eventRegistered = false;
 
 #endif // ARDUINO_ARCH_ESP32
