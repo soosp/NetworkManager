@@ -101,6 +101,17 @@ and this project adheres to
   assumed — the teardown does *not* clear DNS; another interface starting or
   getting a lease does.
 
+### Examples
+
+- `EthWiFiFallback` sets its NTP servers through an `NtpProfile` instead of
+  writing `cfg.ntp[]`, which is gone; the profile is device-level, so the servers
+  no longer have to be repeated for each interface. `Ethernet`, `WiFi` and
+  `EthWiFiFallback` keep their NTP code behind `NTP_PROFILE_ENABLED`, so they
+  build with NTP left out. `FallbackTestRunner` does not, and now refuses such a
+  build with a message: its NTP sync is not a feature being demonstrated but half
+  the measurement — a sync against an FQDN is what proves the route and the
+  resolver survived a handoff, which the event column cannot see.
+
 ## [0.2.0] - 2026-08-05
 
 ### Added

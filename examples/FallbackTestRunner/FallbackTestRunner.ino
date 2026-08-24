@@ -102,6 +102,13 @@
 #include <EthAdapter.h>
 #include <WiFiAdapter.h>
 #include <NetworkManager.h>
+// NTP is not optional here: the sync check is half the rig. A build without it
+// would still walk the matrix and still print PASS, having quietly stopped
+// testing the route and the resolver — the two things the event column cannot
+// see, and the two that this rig was built to catch.
+#if !NTP_PROFILE_ENABLED
+#  error "FallbackTestRunner needs NTP: the sync check is how it verifies the route and the resolver. Leave NTP_PROFILE_ENABLED at 1."
+#endif
 #include <NtpProfile.h>
 #include <NetworkManagerNtpSyncHook.h>   // ESP8266 needs this for setNtpSyncInterval()
 

@@ -101,6 +101,9 @@
 #include <EthAdapter.h>
 #include <WiFiAdapter.h>
 #include <NetworkManager.h>
+#if NTP_PROFILE_ENABLED
+#  include <NtpProfile.h>
+#endif
 
 // If you want to set NTP sync interval on ESP8266, you must include this
 // header to provide the necessary hook for ESP8266 SDK. It is safe to include
@@ -147,6 +150,13 @@ static const bool      WIFI_NTP_DHCP = false;
 static const char*     NTP0          = "pool.ntp.org";
 static const char*     NTP1          = "time.google.com";
 static const char*     NTP2          = "time.cloudflare.com";
+
+#if NTP_PROFILE_ENABLED
+// One clock, one set of servers: the profile belongs to the device, not to
+// whichever interface is currently carrying the traffic.
+NtpProfile             ntpProfile;
+static constexpr char  NS_NTP[]      = "ntp";
+#endif
 static const uint32_t  NTP_POLL      = 3600000; // NTP poll interval, default 1 hour
 
 // -----------------------------------------------------------------------------
@@ -161,6 +171,7 @@ WiFiAdapter wifiAdapter(wifiProfile);
 // -----------------------------------------------------------------------------
 // Callbacks
 // -----------------------------------------------------------------------------
+#if NTP_PROFILE_ENABLED
 
 void onTimeSync() {
     Serial.println(F("NTP: synced"));
@@ -170,7 +181,7 @@ void onTimeSync() {
     // The SDK exposes SNTP servers by slot, not which one delivered the sync, so
     // list the active servers — this also reveals whether DHCP-provided or
     // statically configured servers are in use.
-    for (uint8_t i = 0; i < NetworkProfile::NTP_SERVER_COUNT; i++) {
+    for (uint8_t i = 0; i < NtpProfile::SERVER_COUNT; i++) {
         IPAddress ip = NetworkManager.getActiveNtpIP(i);
         if (ip == IPAddress(0, 0, 0, 0)) continue;   // unset / not yet resolved
         char name[Host::MAX_FQDN_SIZE];
@@ -183,6 +194,7 @@ void onTimeSync() {
         }
     }
 }
+#endif
 
 void onNetworkEvent(NetworkManagerClass::Event event, NetworkAdapter& adapter) {
     NetworkStatus s = NetworkManager.getStatus();
@@ -280,9 +292,6 @@ void setup() {
         }
         // Three NTP servers are configured for Ethernet adapter
         if (!ETH_USE_DHCP || !ETH_NTP_DHCP) {
-            strncpy(ethCfg.ntp[0], NTP0, Host::MAX_FQDN_LEN);
-            strncpy(ethCfg.ntp[1], NTP1, Host::MAX_FQDN_LEN);
-            strncpy(ethCfg.ntp[2], NTP2, Host::MAX_FQDN_LEN);
         }
         ethProfile.setConfig(ethCfg);
         ethProfile.saveCfg("eth");
@@ -308,7 +317,6 @@ void setup() {
         strncpy(wifiCfg.password, WIFI_PASSWORD, sizeof(wifiCfg.password) - 1);
         // One NTP server is configured for WiFi adapter
         if (!wifiCfg.dhcp || !WIFI_NTP_DHCP) {
-            strncpy(wifiCfg.ntp[0], NTP2, Host::MAX_FQDN_LEN);
         }
         wifiProfile.setConfig(wifiCfg);
         wifiProfile.saveCfg("wifi");
@@ -316,9 +324,21 @@ void setup() {
 
     // Register callbacks
     NetworkManager.onEvent(onNetworkEvent);
+#if NTP_PROFILE_ENABLED
     NetworkManager.onNtpSync(onTimeSync);
+#endif
 
     // Add adapters and start
+#if NTP_PROFILE_ENABLED
+    if (!ntpProfile.loadCfg(NS_NTP)) {
+        ntpProfile.setServer(NTP0, 0);
+        if (NtpProfile::SERVER_COUNT >= 2) ntpProfile.setServer(NTP1, 1);
+        if (NtpProfile::SERVER_COUNT >= 3) ntpProfile.setServer(NTP2, 2);
+        ntpProfile.saveCfg(NS_NTP);
+    }
+    NetworkManager.setNtpProfile(ntpProfile);
+#endif
+
     NetworkManager.addAdapter(ethAdapter);
     NetworkManager.addAdapter(wifiAdapter);
     NetworkManager.begin();

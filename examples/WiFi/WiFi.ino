@@ -82,7 +82,7 @@ void onTimeSync() {
     // The SDK exposes SNTP servers by slot, not which one delivered the sync, so
     // list the active servers — this also reveals whether DHCP-provided or
     // statically configured servers are in use.
-    for (uint8_t i = 0; i < NetworkProfile::NTP_SERVER_COUNT; i++) {
+    for (uint8_t i = 0; i < NtpProfile::SERVER_COUNT; i++) {
         IPAddress ip = NetworkManager.getActiveNtpIP(i);
         if (ip == IPAddress(0, 0, 0, 0)) continue;   // unset / not yet resolved
         char name[Host::MAX_FQDN_SIZE];
