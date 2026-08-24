@@ -863,8 +863,6 @@ public:
     bool getNtp(uint8_t i, char* out, size_t len) const {
         if (!out || !len) return false;     // _ntpServerAt() and the test below
         out[0] = '\0';                      // both dereference out
-        NetworkAdapter* active = getActiveAdapter();
-        if (!active) return false;
         _ntpServerAt(i, out, len);
         return out[0] != '\0';
     }
