@@ -35,6 +35,39 @@ and this project adheres to
 
 ### Fixed
 
+- `isConnected()` and `getActiveAdapter()` no longer take the manager's mutex,
+  which they held to no effect and at a cost. Both do nothing but call
+  `_getConnectedIndex()` and return what it found, and that needs no lock: the
+  adapter table is immutable after `begin()`, adapter states are atomic (and
+  were never written under *this* mutex in the first place), and neither result
+  is a reservation — it escapes the lock before the caller acts on it either
+  way.
+
+  The cost was a wrong answer. On a `_lock()` timeout these reported "not
+  connected" and "no active adapter" — statements about the network, made when
+  the only thing that had actually failed was acquiring a lock. `nullptr` from
+  `getActiveAdapter()` now means nothing is connected, and nothing else.
+
+  A failover can land between reading the state and the caller using the
+  result, and that was equally true before: the value escaped the lock either
+  way, so locking narrowed the window by a few instructions while the caller's
+  use of it — a `getStatus()`, a whole `statusToJson()` — stayed outside
+  regardless. Closing it properly would mean holding the mutex across caller
+  code, which this library does not do. The exposure is bounded by design: the
+  index cannot go out of range and the pointer cannot dangle, so the worst case
+  is a stale adapter answering honestly for itself.
+
+  The three conditions the removal rests on are written out at the call site, so
+  that a later change which breaks one of them — adapters becoming addable after
+  `begin()`, above all — shows plainly where the lock would have to go back.
+  `addAdapter()`'s own documentation now states the "before `begin()`" rule that
+  the rest of this depends on; only `API.md` had said it before.
+
+  `getActiveAdapter()` also gained the caveat it had always needed: it is for
+  reaching the serving adapter now, not for keeping. A pointer stored across a
+  fallback goes on naming the interface that was serving. Storing the index
+  instead is no safer — the table is fixed, so a stale index resolves to the
+  same stale adapter.
 - `NetworkAdapter::_state` is now atomic on ESP32 and ESP8266, joining
   `_pendingApply`, `_pendingStop` and `_lastFailedMs`, which were already. It is
   written by `_setState()` on whichever task classified the change — the SDK

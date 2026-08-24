@@ -280,6 +280,12 @@ public:
     *
     * @param adapter Reference to the adapter to register. Must outlive
     *                the NetworkManagerClass instance.
+    *
+    * @note Call before begin(). The adapter table is treated as immutable once
+    *       running: isConnected(), getActiveAdapter() and everything built on
+    *       _getConnectedIndex() read it without a lock precisely because
+    *       nothing writes it after begin(). Registering later would make those
+    *       reads a race, not merely arrive late.
     */
     bool addAdapter(NetworkAdapter& adapter) {
         if (!_lock()) return false;
@@ -695,26 +701,79 @@ public:
     // Status
     // -------------------------------------------------------------------------
 
+    // Neither of the two getters below takes _mutex, and the reason is worth
+    // stating because the lock used to be there and its absence should not read
+    // as an oversight. Both do nothing but call _getConnectedIndex() and hand
+    // back what it found, and that rests on exactly three things:
+    //
+    //   1. _adapterCount and _adapters are written only by addAdapter(), which
+    //      the API requires before begin(). After that the table is immutable.
+    //   2. NetworkAdapter::_state is atomic, so reading it across tasks is a
+    //      defined load. The manager's mutex never helped here anyway — states
+    //      are written under each *adapter's* own mutex, not this one.
+    //   3. Neither result is a reservation. Both are point-in-time answers that
+    //      may be false the instant they return — including in the window
+    //      between reading the state and returning it, where a failover can
+    //      land. A lock never closed that window: the value escapes before the
+    //      caller acts on it, so locking shortened the gap by a few
+    //      instructions while the caller's use of the result — a getStatus(),
+    //      a whole statusToJson() — stayed outside it regardless. Closing it
+    //      would mean holding _mutex across caller code, which this class does
+    //      not do (see the lock discipline in update() and
+    //      _handleStateChange()).
+    //
+    //      The worst outcome is a stale but intact adapter: idx cannot go out
+    //      of range (1), the pointer cannot dangle (addAdapter() requires each
+    //      adapter to outlive the manager), so a caller that has just missed a
+    //      failover calls into an adapter that answers honestly for itself —
+    //      0.0.0.0 from a torn-down one, false from its getLinkInfo(). A stale
+    //      answer, not a corrupt one.
+    //
+    // Holding it was not merely wasted work but actively wrong: on a _lock()
+    // timeout these reported "not connected" and "no active adapter", which are
+    // answers about the network, not about a lock this class failed to acquire.
+    //
+    // Put the lock back if any of the three stops holding — in particular if
+    // adapters ever become addable or removable after begin(), which breaks (1)
+    // and makes the table read a genuine race. That is the change to watch for.
+
     /**
      * @brief Returns true if any adapter is in CONNECTED state.
+     *
+     * Safe from any task and takes no lock (see the note above). The answer is
+     * a point-in-time reading: it may stop being true the moment it returns.
      */
     bool isConnected() const {
-        if (!_lock()) return false;
-        bool ok = _getConnectedIndex() >= 0;
-        _unlock();
-        return ok;
+        return _getConnectedIndex() >= 0;
     }
 
     /**
      * @brief Returns a pointer to the currently active (CONNECTED) adapter,
      *        or nullptr if none is connected.
+     *
+     * For reaching the serving adapter's public interface now — not for keeping.
+     * The adapter that is serving changes on every fallback and restore, so a
+     * stored pointer goes on naming the interface that *was* serving, and calls
+     * through it act on a torn-down one. Ask again each time instead. Storing
+     * the index rather than the pointer buys nothing: the adapter table is fixed
+     * after begin(), so a stale index resolves to exactly the same stale
+     * adapter.
+     *
+     * The returned pointer is never dangling — addAdapter() requires each
+     * adapter to outlive the manager — it is only, possibly, no longer the
+     * active one. A failover can land between the state being read here and
+     * the caller acting on the result; locking would not have prevented that,
+     * only narrowed it (see the note above). The consequence is bounded: a
+     * stale adapter still answers honestly for itself, so a caller that just
+     * missed a handoff reads 0.0.0.0 rather than anything corrupt.
+     *
+     * Safe from any task and takes no lock (see the note above). nullptr means
+     * nothing is connected, and nothing else: it no longer doubles as a lock
+     * timeout, which it did while this method locked.
      */
     NetworkAdapter* getActiveAdapter() const {
-        if (!_lock()) return nullptr;
-        int8_t idx = _getConnectedIndex();
-        NetworkAdapter* result = (idx >= 0) ? _adapters[idx] : nullptr;
-        _unlock();
-        return result;
+        const int8_t idx = _getConnectedIndex();
+        return (idx >= 0) ? _adapters[idx] : nullptr;
     }
 
     /**

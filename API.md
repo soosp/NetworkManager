@@ -137,11 +137,30 @@ they return `INADDR_ANY` (`0.0.0.0`) / an empty snapshot.
 
 #### `bool isConnected() const`
 
-`true` if any adapter currently holds an IP.
+`true` if any adapter currently holds an IP. A point-in-time reading — it may
+stop being true the moment it returns.
 
 #### `NetworkAdapter* getActiveAdapter() const`
 
-The currently serving adapter, or `nullptr` if none.
+The currently serving adapter, or `nullptr` if none. `nullptr` means nothing is
+connected, and nothing else.
+
+For reaching the serving adapter's public interface *now*, not for keeping. The
+serving adapter changes on every fallback and restore, so a stored pointer goes
+on naming the interface that *was* serving. Ask again each time. Storing an
+index instead buys nothing — the adapter table is fixed after `begin()`, so a
+stale index resolves to the same stale adapter. The pointer is never dangling
+(`addAdapter()` requires each adapter to outlive the manager); it may simply no
+longer be the active one.
+
+A failover can also land between the call and your use of the result. That is
+inherent, not a consequence of the missing lock: locking inside the manager
+would end before you acted on the pointer either way. The effect is bounded — a
+stale adapter answers honestly about itself, so you read `0.0.0.0` and a
+`false` link rather than anything corrupt. Where it matters, re-check
+`isConnected()` or work from `getStatus()`, which captures everything at once.
+
+Both take no lock and are safe to call from any task.
 
 #### `IPAddress getLocalIP() const`
 
