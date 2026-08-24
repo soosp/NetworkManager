@@ -460,42 +460,21 @@ protected:
 
 private:
     /**
-     * @brief Requests a deferred stop from the event task.
+     * @brief Atomically reads and clears the pending apply flag.
      *
-     * Called by NetworkManager::_handleStateChange() from the event task
-     * when the adapter transitions to FAILED. The actual stop() is deferred
-     * to the next update() call on the loop task to avoid calling
-     * WiFi.disconnect() from the event task (stack overflow risk).
+     * The deferral is one-way on purpose. There is no matching pending-stop
+     * flag here, because a stop is never requested of an adapter from outside:
+     * the Core decides it and reports it as Decision::stopIdx, so the request
+     * already exists on the manager's side and is deferred there, in
+     * _pendingStopBits[]. An apply is the other way round — the application
+     * asks for it through requestApply(), on whatever task it happens to be on
+     * — so the flag has to live with the adapter being asked. Symmetry would
+     * put a second, unreachable copy of the manager's mechanism in here; the
+     * one that was here was never called from any commit in this repository's
+     * history.
+     *
+     * @return true if an apply was requested since the last call.
      */
-    void _requestStop() {
-#ifndef ARDUINO_ARCH_AVR
-        _pendingStop.store(true);
-#else
-        _pendingStop = true;
-#endif
-    }
-
-    /**
-     * @brief Atomically reads and clears the pending stop flag.
-     * @return true if a stop was requested since the last call.
-     */
-    bool _consumePendingStop() {
-#if defined(ARDUINO_ARCH_ESP32)
-        return _pendingStop.exchange(false);
-#elif defined(ARDUINO_ARCH_ESP8266)
-        // Cooperative scheduling: nothing preempts between load and store, so a
-        // non-atomic read-then-clear is safe and avoids __atomic_exchange (no
-        // libatomic on xtensa-lx106). Atomic load/store still ensure visibility.
-        bool v = _pendingStop.load();
-        _pendingStop.store(false);
-        return v;
-#else
-        bool v = _pendingStop;
-        _pendingStop = false;
-        return v;
-#endif
-    }
-
     bool _consumePendingApply() {
 #if defined(ARDUINO_ARCH_ESP32)
         return _pendingApply.exchange(false);
@@ -534,7 +513,7 @@ private:
     void _unlock() const {}
 #endif
 
-    friend class NetworkManagerClass; ///< Accesses _consumePendingApply(), _consumePendingStop() and _onStateChange.
+    friend class NetworkManagerClass; ///< Accesses _consumePendingApply() and _onStateChange.
 
     // _state is written by _setState() on whichever task classified the change
     // (the SDK network-event task on ESP32) and read by getState() from the loop
@@ -551,9 +530,7 @@ private:
 
 #ifndef ARDUINO_ARCH_AVR
     std::atomic<bool> _pendingApply { false };
-    std::atomic<bool> _pendingStop  { false };
 #else
     bool _pendingApply = false;
-    bool _pendingStop  = false;
 #endif
 };

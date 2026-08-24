@@ -1276,6 +1276,13 @@ private:
     // the actual stop(). Centralising both kinds of stop in one bitmap keeps the
     // event task free of hardware teardown. These bits are genuine cross-task
     // communication, so on ESP32/ESP8266 they are atomic; on AVR plain values.
+    //
+    // This is the only deferred-stop mechanism. NetworkAdapter used to carry a
+    // second, per-adapter copy mirroring its _pendingApply; it was never called
+    // and has been removed. The asymmetry is the right one: an apply is asked
+    // for from outside, so its flag belongs to the adapter being asked, while a
+    // stop is a Core decision arriving as Decision::stopIdx, which is already
+    // here.
 #ifndef ARDUINO_ARCH_AVR
     std::atomic<bool> _pendingStopBits[NETWORK_MANAGER_MAX_ADAPTERS] = {};
 #else

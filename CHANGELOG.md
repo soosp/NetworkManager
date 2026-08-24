@@ -9,6 +9,27 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Removed
+
+- `NetworkAdapter::_requestStop()`, `_consumePendingStop()` and the `_pendingStop`
+  member. All three were unreachable: both methods are private, the only `friend`
+  is `NetworkManagerClass`, and the manager has always deferred stops through its
+  own `_pendingStopBits[]` instead. Checked against every commit in this
+  repository — no call to either has ever existed, so this removes code that was
+  dead from the first commit rather than orphaned by a later change.
+
+  They were a symmetric copy of the adapter's `_pendingApply` pair, and the
+  asymmetry turns out to be correct: an apply is requested from outside through
+  the public `requestApply()`, so its flag belongs to the adapter being asked,
+  while a stop is a Core decision that arrives as `Decision::stopIdx` and is
+  already on the manager's side. Both remaining mechanisms now say so, to keep
+  the missing half from being restored out of symmetry.
+
+  Also confusing on the way out: `NetworkAdapter::_requestStop()` shared its name
+  with the live `NetworkManagerClass::_requestStop(int8_t)`, and the `friend`
+  declaration's comment advertised access to `_consumePendingStop()` that was
+  never used. Both are corrected.
+
 ### Fixed
 
 - `isConnected()` and `getActiveAdapter()` no longer take the manager's mutex,
