@@ -239,6 +239,27 @@ and this project adheres to
   the teardown section is rewritten around what was measured rather than what was
   assumed — the teardown does *not* clear DNS; another interface starting or
   getting a lease does.
+- Comments left behind by the NTP move are corrected. `clearNtpProfile()` said
+  it falls back to "the deprecated per-interface fields" — those fields are what
+  `NtpProfile` replaced, and there is no fallback: no profile means no configured
+  servers, so the next connect lets DHCP supply one, exactly as an empty profile
+  would. `ESP32WiFiAdapter`'s static-IP handler still apologised for
+  `getConfig()` copying NTP fields, which it no longer does. And the block
+  explaining `_ntpSyncInterval` had come to rest above `_ntpProfile`, leaving the
+  field it describes with no comment and the field it sits on with two.
+- `onNtpSync()` and the `NtpSyncCb` type claimed the callback is never invoked on
+  AVR and that NTP there is the application's problem. The manager has run its
+  own UDP SNTP client on AVR for a while, and calls the callback from it; the
+  README and API.md already described that client, so only the header disagreed.
+- `getNtp()` is documented in API.md, next to the two *active* getters it is
+  easily confused with. The configured-versus-active split is the whole point of
+  those three methods and the reference described only two of them.
+- `EthProfile::_initMacDefault()` said it leaves `_macDefault` zero on ESP8266
+  and generates a hostname prefixed "ETH" or "AVR". It derives a
+  locally-administered MAC from the WiFi STA address there, and the prefix is
+  "ESP" or "AVR" — it names the controller rather than the interface, so both of
+  a device's profiles generate the same default hostname.
+- `test/README.md` promised `8/8 passed`; the Core suite has eleven cases.
 
 ### Examples
 

@@ -225,9 +225,8 @@ public:
      *
      * Registered via onNtpSync(). On ESP32, the internal SNTP callback is
      * used; on ESP8266, settimeofday_cb() is used. Do not register these
-     * platform callbacks directly — see class-level note.
-     *
-     * @note Never called on AVR platforms.
+     * platform callbacks directly — see class-level note. On AVR the manager's
+     * own UDP SNTP client calls it.
      */
     using NtpSyncCb = void(*)();
 #endif
@@ -316,8 +315,9 @@ public:
      * (ESP32) or settimeofday_cb() (ESP8266) — it will override the NetworkManager's
      * internal handler and the NTP sync notification will not be delivered.
      *
-     * On AVR, NTP synchronisation is the application's responsibility.
-     * This callback will never be invoked on AVR platforms.
+     * On AVR it is invoked too. The manager runs its own minimal UDP SNTP
+     * client there (see _avrNtpPoll()), so the callback means the same thing on
+     * every platform: the clock has just been set from a server.
      *
      * Only one callback is supported. Pass nullptr to unregister.
      *
@@ -379,8 +379,14 @@ public:
     /**
      * @brief Stops reading servers from a profile set earlier.
      *
-     * Until the deprecated per-interface fields are removed, this falls back to
-     * the connected interface's own NTP settings rather than to nothing.
+     * Falls back to nothing: no profile means no configured servers, and no
+     * other source supplies them. The practical effect on the next connect is
+     * that _configureNtp() finds nothing to point SNTP at and instead lets DHCP
+     * provide a server (option 42), exactly as if a profile had been set and
+     * left empty.
+     *
+     * An earlier version fell back to each interface's own NTP fields; those
+     * fields are gone, which is what NtpProfile replaced.
      */
     void clearNtpProfile() { _ntpProfile = nullptr; }
 
@@ -1207,9 +1213,6 @@ private:
     #if NTP_PROFILE_ENABLED
     NtpSyncCb       _onNtpSync                              = nullptr; ///< Set once before begin(); not modified at runtime.
 
-    // Configured sync interval (ms). Stored on every platform: AVR's poll loop
-    // reads it directly; ESP also pushes it into the SDK (see setNtpSyncInterval
-    // and _configureNtp). Starts at the compile-time default.
     // The servers, as a device-level setting. Both the ESP and the AVR path ask
     // through the two accessors below, so neither has to know where they live.
     NtpProfile* _ntpProfile = nullptr;
@@ -1228,6 +1231,9 @@ private:
         if (_ntpProfile) _ntpProfile->getServer(i, out, len);
     }
 
+    // Configured sync interval (ms). Stored on every platform: AVR's poll loop
+    // reads it directly; ESP also pushes it into the SDK (see setNtpSyncInterval
+    // and _configureNtp). Starts at the compile-time default.
     uint32_t        _ntpSyncInterval                        = NETWORK_MANAGER_DEFAULT_NTP_SYNC_INTERVAL;
 
     // True once at least one sync has succeeded. On ESP it is written from the

@@ -64,7 +64,7 @@ Pick whichever fits your setup — they all do the same thing:
 On Linux/macOS you may first need `chmod +x run_tests.sh`. The VSCode task is in
 `.vscode/tasks.json`; it assumes the project root is your workspace folder.
 
-A passing run ends with `8/8 passed` for the Core suite and `[PASS]` for the
+A passing run ends with `11/11 passed` for the Core suite and `[PASS]` for the
 glue smoke test.
 
 ## Layout assumption

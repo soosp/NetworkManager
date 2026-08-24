@@ -241,8 +241,21 @@ from it with `NtpProfile::getServer()`.
 
 #### `void clearNtpProfile()`
 
-Stops reading servers from a profile. Nothing is then configured, and the
-interface's DHCP-provided servers are used if its lease carries any.
+Stops reading servers from a profile. Nothing is then configured, which is the
+same state as a profile that was set and left empty: on the next connect the
+manager lets DHCP supply a server (option 42) if the lease carries one.
+
+#### `bool getNtp(uint8_t i, char* out, size_t len) const`
+
+**Configured** server `i`, copied from whichever `NtpProfile` is currently set.
+Needs no connection — the servers are persisted settings, so they stay readable
+while every interface is down, as `getHostname()` and `getMac()` do. Returns
+`false` if no profile is set or slot `i` is unused; a name longer than `out` is
+truncated to fit and still returns `true`, so size the buffer at
+`Host::MAX_FQDN_SIZE`.
+
+DHCP-provided servers never appear here — they are not configuration. Use the
+two *active* getters below for what the SNTP client is really using.
 
 #### `bool getActiveNtpName(uint8_t i, char* out, size_t len) const`
 
