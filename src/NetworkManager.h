@@ -827,21 +827,42 @@ public:
 
 #if NTP_PROFILE_ENABLED
     /**
-     * @brief Copies NTP server @p i of the active adapter's profile into @p out.
+     * @brief Copies the currently selected NTP server @p i into @p out.
      *
      * Unlike the address getters, NTP is a configured value rather than a live
      * netif property, so it comes from the NtpProfile handed over with
      * setNtpProfile() — a device-level setting — and not from the status
-     * snapshot. Without such a profile there is nothing to report and this
-     * returns false.
+     * snapshot, nor from any adapter's own profile. Without such a profile
+     * there is nothing to report and this returns false.
+     *
+     * "Currently selected" rather than simply "configured", because the profile
+     * is a pointer the application may re-aim: swapping profiles per interface
+     * from an event handler is a supported pattern (see setNtpProfile()). This
+     * reports whichever profile is in effect now — after a handoff the serving
+     * interface's, after an outage the last serving interface's.
+     *
+     * No connection is required. The servers are persisted configuration and
+     * stay knowable while everything is down; reporting them only while
+     * connected hid the settings exactly when they were most worth showing.
+     * This matches getHostname() and getMac(), the library's other configured
+     * getters; getLocalIP() and friends require a connection because a live
+     * netif property genuinely does not exist without one.
+     *
+     * See getActiveNtpName()/getActiveNtpIP() for what the SNTP client is
+     * actually using, which may differ: with no server configured the manager
+     * lets DHCP supply one (option 42), and that never appears here.
      *
      * @param i   NTP index in [0, NtpProfile::SERVER_COUNT).
      * @param out Caller buffer for the server FQDN/IP string.
      * @param len Size of @p out.
-     * @return true on success; false if not connected or on truncation.
+     * @return true if a non-empty name was copied; false if @p out is null,
+     *         @p len is 0, no profile is set, or slot @p i is unused. A name
+     *         too long for @p out is truncated to fit and still reports true —
+     *         size @p out at Host::MAX_FQDN_SIZE to rule that out.
      */
     bool getNtp(uint8_t i, char* out, size_t len) const {
-        if (out && len) out[0] = '\0';
+        if (!out || !len) return false;     // _ntpServerAt() and the test below
+        out[0] = '\0';                      // both dereference out
         NetworkAdapter* active = getActiveAdapter();
         if (!active) return false;
         _ntpServerAt(i, out, len);
@@ -1119,8 +1140,10 @@ private:
         return _ntpProfile && _ntpProfile->isConfigured();
     }
 
-    /// Reads server @p i; leaves @p out empty for an unused slot.
+    /// Reads server @p i; leaves @p out empty for an unused slot. Tolerates a
+    /// null/zero-length buffer so callers cannot fault it by forwarding one.
     void _ntpServerAt(uint8_t i, char* out, size_t len) const {
+        if (!out || !len) return;
         out[0] = '\0';
         if (_ntpProfile) _ntpProfile->getServer(i, out, len);
     }

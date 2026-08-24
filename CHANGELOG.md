@@ -11,6 +11,11 @@ and this project adheres to
 
 ### Fixed
 
+- `getNtp()` dereferenced a null output buffer. The initial clear was guarded
+  (`if (out && len)`), but the read that followed it was not, so a null pointer
+  or a zero length faulted instead of reporting false. The private
+  `_ntpServerAt()` helper behind it now tolerates one as well, so a future caller
+  cannot reintroduce the same fault from a different direction.
 - ESP8266: TX power is applied after `WiFi.begin()`, not before. `setOutputPower()`
   acts on a running radio, so the value set before the radio started was silently
   discarded and the profile's setting never reached the hardware on that connect.
