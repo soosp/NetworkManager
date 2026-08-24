@@ -1312,7 +1312,7 @@ private:
     /**
      * @brief Builds a Core StateView of the current adapter set.
      *
-     * Reads each adapter's state (a lock-free atomic load) and canProbe()
+     * Reads each adapter's state (an atomic load, no lock) and canProbe()
      * (which may read hardware, e.g. ETH.linkUp()). The snapshot is a frozen
      * copy: the Core reasons about it without ever touching live adapters.
      */
@@ -1540,9 +1540,20 @@ private:
     /**
      * @brief Returns the index of the highest-priority CONNECTED adapter,
      *        or -1 if none.
+     *
+     * Needs no lock, and holding one would not help: the adapter states it
+     * reads are written from the event task under each adapter's own mutex,
+     * not this manager's, so _mutex synchronises nothing here. What it does
+     * require is a stable adapter table, which addAdapter()'s "before begin()"
+     * contract already guarantees — after begin(), _adapterCount and _adapters
+     * are never written again.
+     *
+     * Each getState() is an atomic load, so the answer is a consistent
+     * point-in-time reading rather than a reservation: an adapter may leave
+     * CONNECTED the instant this returns. Callers that must act on the index
+     * are expected to tolerate that (update() re-derives it every pass).
      */
     int8_t _getConnectedIndex() const {
-        // Caller must hold _mutex (or _adapterCount must be stable).
         for (uint8_t i = 0; i < _adapterCount; i++) {
             if (_adapters[i]->getState() == NetworkAdapter::State::CONNECTED) {
                 return (int8_t)i;

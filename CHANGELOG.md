@@ -35,6 +35,26 @@ and this project adheres to
 
 ### Fixed
 
+- `NetworkAdapter::_state` is now atomic on ESP32 and ESP8266, joining
+  `_pendingApply`, `_pendingStop` and `_lastFailedMs`, which were already. It is
+  written by `_setState()` on whichever task classified the change — the SDK
+  network-event task on ESP32 — and read by `getState()` from the loop task with
+  no lock, so a plain member was a cross-task read of something being written
+  concurrently. It stays a plain member on AVR, which has one task.
+
+  Two comments described the code as if this had always been the case and are
+  now true rather than aspirational: `_snapshot()` said it read each state with
+  an atomic load, and `_getConnectedIndex()` claimed the caller had to hold
+  `_mutex`. The latter was wrong in both directions — holding the manager's
+  mutex synchronises nothing here, since the states are written under each
+  adapter's own mutex, and four of the six call sites did not hold it anyway.
+  What the function actually needs is a stable adapter table, which
+  `addAdapter()`'s "before `begin()`" contract already guarantees; that is what
+  it now says.
+
+  No behaviour change is expected on either platform: a one-byte aligned load
+  compiles to the same instruction. What changes is that the guarantee is stated
+  in the type rather than assumed by the reader.
 - `statusToJson()` dropped the whole document when an NTP server name ran past
   53 characters. Each server's `name` field was formatted through the shared
   64-byte scratch buffer, but a name may be a full-length FQDN — the very length

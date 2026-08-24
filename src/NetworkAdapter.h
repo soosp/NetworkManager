@@ -242,6 +242,12 @@ public:
      *
      * The CONNECTING state is used by NetworkManager to detect whether
      * an adapter is already starting up, preventing duplicate start() calls.
+     *
+     * Takes no lock. The state is written from whichever task classified the
+     * change, so the member is atomic and this is a single atomic load — safe
+     * to call from any task, and what the manager's _snapshot() relies on. It
+     * is a point-in-time answer, not a reservation: the state may change the
+     * instant it returns, so act on the value rather than re-reading it.
      */
     State getState() const { return _state; }
 
@@ -530,7 +536,17 @@ private:
 
     friend class NetworkManagerClass; ///< Accesses _consumePendingApply(), _consumePendingStop() and _onStateChange.
 
-    State         _state;         ///< Current connection state.
+    // _state is written by _setState() on whichever task classified the change
+    // (the SDK network-event task on ESP32) and read by getState() from the loop
+    // task with no lock — the manager's mutex is a different mutex and buys
+    // nothing here. Atomic for the same reason _pendingApply and _lastFailedMs
+    // below are: a cross-task read of a plain member is not a defined load, and
+    // the manager's snapshot logic is documented as relying on one that is.
+#ifndef ARDUINO_ARCH_AVR
+    std::atomic<State> _state;    ///< Current connection state.
+#else
+    State         _state;         ///< Current connection state (AVR: single task).
+#endif
     StateChangeCb _onStateChange; ///< Callback registered by NetworkManager.
 
 #ifndef ARDUINO_ARCH_AVR
