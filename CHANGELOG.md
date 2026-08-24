@@ -9,30 +9,6 @@ and this project adheres to
 
 ## [Unreleased]
 
-### Changed
-
-- `getNtp()` no longer requires a connection. The NTP servers are persisted
-  configuration read from the `NtpProfile` given to `setNtpProfile()`, so they
-  stay knowable while every interface is down — gating them on connectivity hid
-  the settings exactly when an application most wants to show them, such as on a
-  configuration page served by a device that cannot currently reach the network.
-  It also put the method on the wrong side of the library's own split:
-  `getHostname()` and `getMac()` report configured values without a connection,
-  while `getLocalIP()` and the other address getters require one because a live
-  netif property genuinely does not exist without it. `getNtp()` was a configured
-  value behaving like a live one.
-
-  Only the disconnected case changes. Connected behaviour, the signature and the
-  buffer contract are untouched, `out` is still emptied before anything else, and
-  an unused slot still reports false. DHCP-provided servers (option 42) are
-  unaffected: they are never configuration, and have always been reported by
-  `getActiveNtpName()`/`getActiveNtpIP()` instead, which read the live SNTP
-  client and go empty when `_disableNtp()` tears it down as the last interface
-  goes down.
-
-  Applications reading `getNtp()`'s false as "not connected" should use
-  `isConnected()`.
-
 ### Fixed
 
 - `isConnected()` and `getActiveAdapter()` no longer take the manager's mutex,
@@ -193,6 +169,27 @@ and this project adheres to
 - `NTP_PROFILE_SERVER_COUNT` replaces `NETWORK_PROFILE_NTP_SERVER_COUNT`
   throughout, including the examples and the host test harness. The old name is
   reported by a `#warning` from NetworkProfile rather than ignored.
+- `getNtp()` no longer requires a connection. The NTP servers are persisted
+  configuration read from the `NtpProfile` given to `setNtpProfile()`, so they
+  stay knowable while every interface is down — gating them on connectivity hid
+  the settings exactly when an application most wants to show them, such as on a
+  configuration page served by a device that cannot currently reach the network.
+  It also put the method on the wrong side of the library's own split:
+  `getHostname()` and `getMac()` report configured values without a connection,
+  while `getLocalIP()` and the other address getters require one because a live
+  netif property genuinely does not exist without it. `getNtp()` was a configured
+  value behaving like a live one.
+
+  Only the disconnected case changes. Connected behaviour, the signature and the
+  buffer contract are untouched, `out` is still emptied before anything else, and
+  an unused slot still reports false. DHCP-provided servers (option 42) are
+  unaffected: they are never configuration, and have always been reported by
+  `getActiveNtpName()`/`getActiveNtpIP()` instead, which read the live SNTP
+  client and go empty when `_disableNtp()` tears it down as the last interface
+  goes down.
+
+  Applications reading `getNtp()`'s false as "not connected" should use
+  `isConnected()`.
 
 ### Documentation
 
