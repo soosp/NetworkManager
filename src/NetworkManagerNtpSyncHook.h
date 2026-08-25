@@ -61,9 +61,17 @@
  * request expensive — it only spaces out the successful ones.
  *
  * No extern "C": on the ESP8266 core lwip2 references the C++-mangled symbol.
+ *
+ * Reached through NetworkManagerClass::instance() rather than the global
+ * NetworkManager. The two are the same object, but the global is a convenience
+ * the library hands to sketches and lets them take back with
+ * NETWORK_MANAGER_NO_GLOBAL — so library code should not depend on it. That the
+ * macro is available on every platform, not only ESP32 where it settles the
+ * core's class of the same name, is what would otherwise have broken this file
+ * on the one platform that needs it.
  */
 uint32_t sntp_update_delay_MS_rfc_not_less_than_15000() {
-    const uint32_t ms = NetworkManager.getNtpSyncInterval();
+    const uint32_t ms = NetworkManagerClass::instance().getNtpSyncInterval();
     return ms < 15000UL ? 15000UL : ms;
 }
 

@@ -32,6 +32,16 @@ and this project adheres to
 
 ### Fixed
 
+- `NetworkManagerNtpSyncHook.h` compiles in a build that defines
+  `NETWORK_MANAGER_NO_GLOBAL`. The hook reached the manager through the global
+  `NetworkManager`, which that macro suppresses; it uses
+  `NetworkManagerClass::instance()` now, the same object by another name.
+
+  The macro is not ESP32-only even though the collision that prompted it is: a
+  name can just as easily be wanted by another library, or by the sketch itself,
+  on any platform — and this header is only compiled on ESP8266. More to the
+  point, the global is a convenience the library offers sketches and lets them
+  take back, so library code has no business depending on it.
 - `NETWORK_MANAGER_MAX_ADAPTERS` actually defaults to 2. It was reduced from 4
   to 2 in 0.1.1, but the `#ifndef` stating that sat *below* the include of
   `NetworkManagerCore.h`, which carries its own fallback of 4 for when it is

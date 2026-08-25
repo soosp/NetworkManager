@@ -2046,6 +2046,14 @@ private:
  * including this header and reach the singleton through
  * NetworkManagerClass::instance() — the same escape EEPROMPreferences offers
  * for its own Preferences alias.
+ *
+ * That escape is deliberately not ESP32-only, though the collision that
+ * prompted it is. A name this convenient can just as easily be wanted by
+ * another library or by the sketch itself, on any platform. The consequence
+ * for this library is that its own code must reach the singleton through
+ * instance() rather than through the global it offers sketches — see
+ * NetworkManagerNtpSyncHook.h, which is compiled only on ESP8266 and would
+ * otherwise have depended on a name the application is free to take back.
  */
 #ifndef NETWORK_MANAGER_NO_GLOBAL
 static NetworkManagerClass& NetworkManager = NetworkManagerClass::instance();
