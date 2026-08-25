@@ -71,7 +71,6 @@ and this project adheres to
 
   Where both profiles hold servers, or neither does, the value written here is
   the one already in force and nothing changes.
-
 - The adapters' static member definitions are `inline`, so a project may include
   an adapter header from more than one translation unit. Twelve definitions
   across `ESP32WiFiAdapter.h`, `ESP32EthAdapter.h` and `ESP8266WiFiAdapter.h`
@@ -244,7 +243,6 @@ and this project adheres to
   it was quiet: an interface meant to take its time server from DHCP kept
   serving the previous interface's, because `configTime(0, 0, NULL, NULL, NULL)`
   clears lwIP's server *names* and leaves the resolved addresses in place.
-
 - `setNtpProfile()` / `clearNtpProfile()` — the NTP servers now come from a
   device-level `NtpProfile` (NetworkProfile >= 0.7.0) rather than from whichever
   interface happens to be up. A device has one clock; where interfaces genuinely
@@ -294,7 +292,6 @@ and this project adheres to
   `class NetworkManager *p`, or define `NETWORK_MANAGER_NO_GLOBAL` to suppress
   the global entirely — the same escape `EEPROMPreferences` offers for its
   `Preferences` alias.
-
 - Guards test `NTP_PROFILE_ENABLED` — "is there NTP in this build" — instead of
   reading a server count and inferring it from the count being non-zero. Buffers
   and loop bounds take `NtpProfile::SERVER_COUNT`, so the size comes from the
@@ -375,7 +372,6 @@ and this project adheres to
   `applyOrHalt()` helper that stops rather than continuing on an unusable
   profile, which is the right answer for a sketch: there is nobody to re-enter
   it.
-
 - `EthWiFiFallback` can exercise DHCP-provided NTP again, and per interface. The
   NTP move emptied the two `if` bodies that used to fill `ntp[]` in each network
   config but left the shells and the `ETH_NTP_DHCP` / `WIFI_NTP_DHCP` flags
@@ -387,7 +383,6 @@ and this project adheres to
   empty, which is how the manager is told to ask DHCP. Setting the two flags
   differently is the mixed configuration described under "Mixed DHCP and
   configured NTP" in API.md, and the handler says so where a reader will meet it.
-
 - `EthWiFiFallback` sets its NTP servers through an `NtpProfile` instead of
   writing `cfg.ntp[]`, which is gone; the profile is device-level, so the servers
   no longer have to be repeated for each interface. `Ethernet`, `WiFi` and
@@ -462,7 +457,8 @@ and this project adheres to
 ### Changed
 
 - The JSON helpers now delegate to `detail/json_tools.h` in `NetworkProfile`
-  (already a dependency) rather than carrying a private copy. `_jsonCat()` maps to
+  (already a dependency) rather than carrying a private copy. `_jsonCat()` maps
+  to
   `json_catAtomic()`, which keeps this builder's all-or-nothing behaviour —
   distinct from the truncating variant `NetworkProfile` uses.
 - Requires `NetworkProfile` >= 0.5.2.
