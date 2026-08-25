@@ -415,6 +415,14 @@ the offer at all, so setting it once the lease has arrived is too late.
 Defaults to true, matching "nothing configured, so take what the network offers".
 Sketches do not call this; the manager derives it from the NTP profile.
 
+#### `void setNtpProfile(NtpProfile& profile)` / `void clearNtpProfile()` / `NtpProfile* ntpProfile() const`
+
+Binds this interface's own NTP servers, overriding the manager's device-level
+profile for this interface alone. Optional: an unbound adapter uses the
+device-level one, so a device whose interfaces share a clock source needs
+nothing here. See [Time & NTP](#time--ntp) for when the two differ and why the
+binding lives on the adapter.
+
 #### `const NetworkProfile& getProfile() const`
 
 The associated profile.

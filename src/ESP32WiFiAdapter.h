@@ -249,9 +249,8 @@ private:
             case ARDUINO_EVENT_WIFI_STA_CONNECTED: {
                 // Apply static IP if DHCP is disabled. getConfig() copies the
                 // whole struct, SSID and password included, for the three
-                // address fields used here — a copy this event handler can
-                // afford, and cheaper than it used to be now that NTP servers
-                // no longer travel in it.
+                // address fields used here — a copy small enough for an event
+                // handler to afford.
                 WiFiProfile::WiFiConfig cfg;
                 inst->_wifiProfile.getConfig(cfg);
                 if (!cfg.dhcp) {

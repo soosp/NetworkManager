@@ -337,11 +337,12 @@ private:
     // unambiguous "off".)
     uint32_t _disconnectGrace = 0;
 
-    // DISCONNECTED has already been emitted for the current outage. This splits a
-    // meaning that _lastServingIdx used to carry twice: "never served" AND
-    // "outage already reported". Keeping them apart lets the grace clock run from
-    // boot (a boot with no network is a genuine outage and is reported once),
-    // while still preventing a repeat every reconnect timeout while it persists.
+    // DISCONNECTED has already been emitted for the current outage. Kept apart
+    // from _lastServingIdx, which answers "has anything ever served": one field
+    // cannot mean "never served" and "outage already reported" at the same time.
+    // Separate, the grace clock can run from boot — a boot with no network is a
+    // genuine outage, and is reported once — without a repeat every reconnect
+    // timeout for as long as it lasts.
     bool    _disconnectReported = false;
 
     const uint32_t _reconnectTimeout;

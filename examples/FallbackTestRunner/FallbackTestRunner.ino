@@ -145,11 +145,14 @@ static const char*     ETH_NTP        = "pool.ntp.org";
 static const char*     WIFI_NTP       = "time.cloudflare.com";
 
 //
-// The servers are a device-level setting now, so this is the two-instance case
-// the API is meant for: one profile per interface, swapped from the CONNECTED
-// handler. That works because the manager dispatches events to the application
-// before it configures NTP in the same update() pass — so the profile chosen
-// here is the one applied for this handoff, not the next.
+// Two instances, one per interface, each bound to its adapter in setup() with
+// NetworkAdapter::setNtpProfile(). Giving the interfaces different servers is
+// what makes the log show which one the SNTP client actually ended up using.
+//
+// Bound to the adapters rather than swapped on the manager as the serving
+// interface changes: the manager has to know whether an interface wants DHCP's
+// time server before it starts it, and at that moment no event has told the
+// application which interface is taking over.
 NtpProfile ethNtp;
 NtpProfile wifiNtp;
 

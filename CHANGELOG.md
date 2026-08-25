@@ -339,6 +339,36 @@ and this project adheres to
 
 ### Documentation
 
+- Comments that explained the code by what it used to be are reworded to explain
+  it by what it must do. A reader who never saw the earlier version cannot check
+  "NetworkAdapter used to carry a second, per-adapter copy" or "the Core's
+  fallbacks won instead" against anything, and the same points stated forward —
+  why a matching flag there would have nothing to set it, why these defaults have
+  to stay above the include — need no such memory. Affects the `MAX_ADAPTERS`
+  block, `_pendingStopBits`, `NetworkAdapter::_consumePendingApply()`,
+  `getActiveAdapter()`, `ESP32WiFiAdapter`'s static-IP handler and
+  `NetworkManagerCore::_disconnectReported`.
+
+  One is left as it stands: the note above `isConnected()` explaining why the
+  mutex is *not* there. Its subject is the absence itself, so a reader who never
+  saw the lock is exactly who it is written for.
+- Comments and documents describing the superseded way of giving interfaces
+  different NTP servers are corrected. Four places still said to keep two
+  profiles and swap them on the manager from the `CONNECTED` handler — the
+  `FallbackTestRunner` sketch (whose comment contradicted the code directly
+  beneath it), and `NetworkProfile`'s `API.md`, `README.md` and `NtpConfig`
+  example, which the change to per-adapter binding did not touch because it was
+  made in this repository. That pattern cannot work for the DHCP question: the
+  manager settles option 42 before it starts an interface, and no event has said
+  which interface is taking over that early.
+- `NetworkAdapter::setNtpProfile()` is listed in `API.md`'s NetworkAdapter
+  section, not only under the manager's Time & NTP heading where it was first
+  written up. It is an adapter method; a reader working through the adapter's
+  interface would not have found it.
+- `_avrNtpResolveServer()` falls back to the primary adapter when nothing is
+  connected, as `getNtp()` does, rather than to the device-level profile. Only
+  reachable while connected in practice, but the two answered the same question
+  differently.
 - README and API.md follow the changes: `setNtpProfile()` replaces reading the
   servers from a profile, `setNtpFromDhcp()` is documented on the adapter, and
   the teardown section is rewritten around what was measured rather than what was

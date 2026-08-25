@@ -3,7 +3,8 @@
  *
  * Opt-in ESP8266 SNTP poll-interval hook for NetworkManager.
  * 
- * Must be included after NetworkManager.h for NetworkManager singleton accessor + getNtpSyncInterval()
+ * Must be included after NetworkManager.h, for the singleton accessor and
+ * getNtpSyncInterval().
  * 
  * WHY THIS EXISTS (ESP8266 SDK / lwip2 quirk)
  * -------------------------------------------

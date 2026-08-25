@@ -496,16 +496,14 @@ private:
     /**
      * @brief Atomically reads and clears the pending apply flag.
      *
-     * The deferral is one-way on purpose. There is no matching pending-stop
-     * flag here, because a stop is never requested of an adapter from outside:
-     * the Core decides it and reports it as Decision::stopIdx, so the request
-     * already exists on the manager's side and is deferred there, in
-     * _pendingStopBits[]. An apply is the other way round — the application
-     * asks for it through requestApply(), on whatever task it happens to be on
-     * — so the flag has to live with the adapter being asked. Symmetry would
-     * put a second, unreachable copy of the manager's mechanism in here; the
-     * one that was here was never called from any commit in this repository's
-     * history.
+     * The deferral is one-way on purpose, and the symmetry is tempting enough
+     * to say why. An apply is asked for from outside, through requestApply(),
+     * on whatever task the application happens to be on — so the flag belongs
+     * to the adapter being asked. A stop is not: the Core decides it and
+     * reports it as Decision::stopIdx, so the request already exists on the
+     * manager's side and is deferred there, in _pendingStopBits[]. A matching
+     * flag here would be a second copy of that mechanism with nothing to set
+     * it.
      *
      * @return true if an apply was requested since the last call.
      */

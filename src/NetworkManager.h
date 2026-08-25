@@ -13,10 +13,9 @@
 //
 // NetworkManagerCore.h carries its own #ifndef fallbacks for both, because it is
 // also compiled on its own (see test/nm_harness.cpp) and must stand up without
-// this header. Whichever file is reached first therefore wins, and this one is
-// only reached first if the defaults are stated above the include. Stated below
-// it, as they were, the Core's fallbacks won instead and NETWORK_MANAGER_MAX_
-// ADAPTERS silently came out as the Core's 4 rather than the 2 documented here.
+// this header. Whichever file a translation unit reaches first decides, so these
+// have to stay above the include below — under it, the Core's fallbacks win and
+// the values here never take effect, silently and without a diagnostic.
 //
 // Keep the two sets of fallbacks in step: they are duplicated on purpose (the
 // Core has no dependency to inherit them from), not by accident.
@@ -799,8 +798,8 @@ public:
      * missed a handoff reads 0.0.0.0 rather than anything corrupt.
      *
      * Safe from any task and takes no lock (see the note above). nullptr means
-     * nothing is connected, and nothing else: it no longer doubles as a lock
-     * timeout, which it did while this method locked.
+     * nothing is connected, and nothing else — in particular it is not a lock
+     * timeout, which is why this method does not take one.
      */
     NetworkAdapter* getActiveAdapter() const {
         const int8_t idx = _getConnectedIndex();
@@ -1335,9 +1334,9 @@ private:
     // event task free of hardware teardown. These bits are genuine cross-task
     // communication, so on ESP32/ESP8266 they are atomic; on AVR plain values.
     //
-    // This is the only deferred-stop mechanism. NetworkAdapter used to carry a
-    // second, per-adapter copy mirroring its _pendingApply; it was never called
-    // and has been removed. The asymmetry is the right one: an apply is asked
+    // This is the only deferred-stop mechanism, and the one place to add to if
+    // another kind of stop appears. NetworkAdapter deliberately has no matching
+    // per-adapter flag beside its _pendingApply: an apply is asked
     // for from outside, so its flag belongs to the adapter being asked, while a
     // stop is a Core decision arriving as Decision::stopIdx, which is already
     // here.
@@ -1625,7 +1624,7 @@ private:
         // It does not rescue the lease that has already been handled: a server
         // offered in option 42 while the mode was off is not applied
         // retroactively. What it does is stop the two from staying out of step —
-        // configured servers can no longer be overwritten by a later renewal,
+        // configured servers cannot be overwritten by a later renewal,
         // and an interface left without servers picks one up at its next
         // renewal instead of never.
 #if defined(ARDUINO_ARCH_ESP8266)
