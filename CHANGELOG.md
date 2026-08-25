@@ -32,6 +32,22 @@ and this project adheres to
 
 ### Fixed
 
+- `NETWORK_MANAGER_MAX_ADAPTERS` actually defaults to 2. It was reduced from 4
+  to 2 in 0.1.1, but the `#ifndef` stating that sat *below* the include of
+  `NetworkManagerCore.h`, which carries its own fallback of 4 for when it is
+  compiled alone. The Core got there first, so every build that did not set the
+  macro itself silently used 4 — including the adapter table and the Core's
+  `StateView` arrays. `README.md` and `API.md` documented 4 and were right about
+  the behaviour while the CHANGELOG was right about the intent.
+
+  Both fallbacks are now 2 and the one here is stated above the includes, with
+  the reason written at both sites so they are kept in step. The range check
+  moved up with it: the Core sizes arrays from this macro, so an out-of-range
+  value has to be rejected before it does.
+
+  Applications that set the macro themselves are unaffected. Those that did not
+  get two fewer adapter slots than they have been getting, which is the
+  documented maximum and the number of adapter types this library has.
 - ESP32: `_configureNtp()` now re-asserts `esp_sntp_servermode_dhcp()` from the
   profile in use, as the ESP8266 path has always done with
   `sntp_servermode_dhcp()`. Both platforms make this choice once before
