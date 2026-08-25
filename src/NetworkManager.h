@@ -35,6 +35,16 @@
 #   define NETWORK_MANAGER_RECONNECT_TIMEOUT 60000
 #endif
 
+#if defined(ARDUINO_ARCH_ESP32)
+// Before anything else, and before this header declares a reference called
+// NetworkManager: the core has a class of that name (libraries/Network, global
+// instance Network), and a name can only be shared if the class is declared
+// first. The adapters include this header too and use Network.onEvent(), so it
+// costs nothing — but it must not be left to them, because a sketch is free to
+// include this file before any adapter.
+#include <Network.h>
+#endif
+
 #include "NetworkAdapter.h"        // brings in NetworkProfile.h, and with it
                                   // NTP_PROFILE_ENABLED — so this include
                                   // has to come before the test below
@@ -242,16 +252,25 @@ public:
     /**
      * @brief Returns the single instance of the class (Meyers' Singleton).
      *
-     * Uses lazy initialization: the instance is created on the static data segment 
-     * only upon the first call, avoiding heap allocation and the 'static 
-     * initialization order fiasco'.
+     * The instance lives in the static data segment and is created on first
+     * call, so there is no heap allocation and exactly one instance however
+     * many translation units include this header.
      *
-     * * @return NetworkManagerClass& reference to the singleton instance.
+     * Sketches normally write NetworkManager.begin() and never call this. It is
+     * public for the one case that needs it: a build that defines
+     * NETWORK_MANAGER_NO_GLOBAL because the name is wanted for something else
+     * (see the declaration of NetworkManager below).
+     *
+     * @return Reference to the singleton instance.
      */
-    static NetworkManagerClass& _getNetworkManagerInstance() {
+    static NetworkManagerClass& instance() {
         static NetworkManagerClass _instance;
         return _instance;
     }
+
+    /// @deprecated Older spelling of instance(); kept so that code written
+    ///             against it still compiles. Prefer instance().
+    static NetworkManagerClass& _getNetworkManagerInstance() { return instance(); }
 
     // -------------------------------------------------------------------------
     // Setup
@@ -1753,7 +1772,7 @@ private:
      */
     static void _onAdapterStateChange(NetworkAdapter& adapter,
                                       NetworkAdapter::State state) {
-        _getNetworkManagerInstance()._handleStateChange(adapter, state);
+        instance()._handleStateChange(adapter, state);
     }
 
 #if NTP_PROFILE_ENABLED
@@ -1771,8 +1790,8 @@ private:
         // (e.g. under SNTP_SYNC_MODE_SMOOTH) so the callback always means "time
         // is now NTP-accurate", never a partial adjustment.
         if (esp_sntp_get_sync_status() != SNTP_SYNC_STATUS_COMPLETED) return;
-        _getNetworkManagerInstance()._timeValid = true;
-        if (_getNetworkManagerInstance()._onNtpSync) _getNetworkManagerInstance()._onNtpSync();
+        instance()._timeValid = true;
+        if (instance()._onNtpSync) instance()._onNtpSync();
     }
 
 #elif defined(ARDUINO_ARCH_ESP8266)
@@ -1787,8 +1806,8 @@ private:
      */
     static void _ntpSyncCallback(bool fromSntp) {
         if (!fromSntp) return;
-        _getNetworkManagerInstance()._timeValid = true;
-        if (_getNetworkManagerInstance()._onNtpSync) _getNetworkManagerInstance()._onNtpSync();
+        instance()._timeValid = true;
+        if (instance()._onNtpSync) instance()._onNtpSync();
     }
 #endif
 
@@ -1997,19 +2016,40 @@ private:
 /**
  * @brief Global accessor for the NetworkManagerClass singleton.
  *
- * Implemented as a macro so it compiles under C++11 (AVR / avr-gcc 7.x) as
- * well as C++17. The underlying function returns a function-local static, so
- * there is exactly one instance regardless of how many translation units
- * include this header — no ODR violation, no initialisation-order issues.
- *
  * Use directly in sketches:
  * @code
  * NetworkManager.addAdapter(ethAdapter);
  * NetworkManager.onNtpSync([]() { Serial.println("Time synced"); });
  * NetworkManager.begin();
  * @endcode
+ *
+ * A reference rather than a macro, because on ESP32 the core has a class of
+ * this name too (libraries/Network, whose global instance is Network). A macro
+ * rewrote every later occurrence of the word, including that class's own
+ * declaration, so whether a sketch compiled came down to which header it
+ * happened to include first. A reference coexists: a qualified name like
+ * NetworkManager::setHostname() is looked up among types and namespaces only,
+ * where the core's class is still found, while a plain NetworkManager.begin()
+ * finds this reference. The include of <Network.h> at the top of this file
+ * makes sure the class is declared before the name is taken.
+ *
+ * `static` gives it internal linkage: one reference per translation unit, all
+ * bound to the same singleton, and no definition needed in a .cpp — which keeps
+ * the library header-only under C++11 as well as C++17. Unlike the macro it
+ * replaces, this constructs the instance during static initialisation rather
+ * than on first use; the constructor is defaulted and touches no other global,
+ * so there is no initialisation-order hazard.
+ *
+ * One case is left over: naming the core's class as a plain type in a
+ * declaration, `NetworkManager *p`, finds this reference instead and fails.
+ * Write `class NetworkManager *p`, or define NETWORK_MANAGER_NO_GLOBAL before
+ * including this header and reach the singleton through
+ * NetworkManagerClass::instance() — the same escape EEPROMPreferences offers
+ * for its own Preferences alias.
  */
-#define NetworkManager (NetworkManagerClass::_getNetworkManagerInstance())
+#ifndef NETWORK_MANAGER_NO_GLOBAL
+static NetworkManagerClass& NetworkManager = NetworkManagerClass::instance();
+#endif
 
 // ESP8266 SNTP poll-interval control lives in the separate, opt-in header
 // NetworkManagerNtpSyncHook.h (include it in exactly one translation unit to

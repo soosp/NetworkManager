@@ -243,6 +243,42 @@ and this project adheres to
 
 ### Changed
 
+- The global `NetworkManager` is a reference rather than a macro. On ESP32 the
+  Arduino core has a class of the same name in its `Network` library, and a
+  macro rewrote every later occurrence of the word — including that class's own
+  declaration. Whether a sketch compiled therefore depended on which header it
+  included first: adapter headers pull in `<WiFi.h>`/`<ETH.h>` and with them the
+  core's declaration, so the examples worked, while the natural
+
+  ```cpp
+  #include <NetworkManager.h>
+  #include <WiFiAdapter.h>
+  ```
+
+  failed with `expected identifier before '(' token` pointing into this
+  library's header, nowhere near the cause.
+
+  A reference coexists with the class: a qualified name like
+  `NetworkManager::setHostname()` — the core's static hostname API — is looked
+  up among types and namespaces only, so it still finds the class, while
+  `NetworkManager.begin()` finds the reference. `<Network.h>` is now included at
+  the top of this header so the class is always declared before the name is
+  taken, rather than that depending on the sketch. The adapters already included
+  it and use `Network.onEvent()`, so nothing new is linked in.
+
+  Sketch code is unaffected — `NetworkManager.begin()` reads and behaves as
+  before. Two details differ underneath: the singleton is constructed during
+  static initialisation instead of on first use (its constructor is defaulted
+  and touches no other global, so there is no ordering hazard), and
+  `instance()` joins `_getNetworkManagerInstance()` as a public spelling of the
+  accessor, which is what `NETWORK_MANAGER_NO_GLOBAL` builds use.
+
+  One spelling remains ambiguous: naming the core's class as a plain type in a
+  declaration, `NetworkManager *p`, finds the reference. Write
+  `class NetworkManager *p`, or define `NETWORK_MANAGER_NO_GLOBAL` to suppress
+  the global entirely — the same escape `EEPROMPreferences` offers for its
+  `Preferences` alias.
+
 - Guards test `NTP_PROFILE_ENABLED` — "is there NTP in this build" — instead of
   reading a server count and inferring it from the count being non-zero. Buffers
   and loop bounds take `NtpProfile::SERVER_COUNT`, so the size comes from the

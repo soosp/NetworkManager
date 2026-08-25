@@ -47,6 +47,7 @@ details.
 |`NETWORK_MANAGER_DEFAULT_NTP_RETRY_INTERVAL`|`30000`|AVR only: base retry delay after a failed sync (server already resolved), ms; doubles per failure up to `_MAX`. No effect on ESP.|
 |`NETWORK_MANAGER_DEFAULT_NTP_RETRY_MAX`|`300000`|AVR only: cap for the retry backoff, ms.|
 |`NETWORK_ADAPTER_RETRY_INTERVAL`|`15000`|Minimum interval between probe attempts on a failed adapter, ms.|
+|`NETWORK_MANAGER_NO_GLOBAL`|undefined|Suppresses the global `NetworkManager` reference. See [the note below](#the-networkmanager-name).|
 
 Adapter-specific macros (define before including the adapter header):
 
@@ -80,6 +81,28 @@ NTP buffer sizing is inherited from NetworkProfile / Host
 `NetworkManager` is a singleton; use the global instance `NetworkManager`
 (there is no need to construct one). All calls below must be made from the same
 task that calls `update()` — normally the Arduino `loop()`.
+
+### The NetworkManager name
+
+On ESP32 the Arduino core has a class called `NetworkManager` of its own, in its
+`Network` library, whose global instance is `Network`. The two coexist: the
+global here is a reference, and a qualified name such as
+`NetworkManager::setHostname()` is looked up among types and namespaces only,
+where the core's class is still found. `NetworkManager.begin()` finds the
+reference. Nothing needs doing.
+
+One spelling is ambiguous — naming the core's class as a plain type in a
+declaration:
+
+```cpp
+NetworkManager *p = &Network;         // finds the reference; does not compile
+class NetworkManager *p = &Network;   // fine
+```
+
+If the name is wanted for something else entirely — another library's type, or
+your own — define `NETWORK_MANAGER_NO_GLOBAL` before including this header. The
+global is then not declared, and the singleton is reached through
+`NetworkManagerClass::instance()`.
 
 ### Setup & lifecycle
 
