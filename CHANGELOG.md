@@ -32,6 +32,30 @@ and this project adheres to
 
 ### Fixed
 
+- ESP32: `_configureNtp()` now re-asserts `esp_sntp_servermode_dhcp()` from the
+  profile in use, as the ESP8266 path has always done with
+  `sntp_servermode_dhcp()`. Both platforms make this choice once before
+  `start()`, because lwIP must know before the DHCP handshake — but with
+  per-interface `NtpProfile`s swapped from an event handler, that early decision
+  is necessarily made from the *previous* interface's profile: the event that
+  swaps them cannot arrive until the interface is already up. ESP8266 corrected
+  itself at configure time; ESP32 had no counterpart there and stayed out of step
+  until the next handoff.
+
+  Two consequences, both only reachable when two profiles disagree about holding
+  servers. Configured servers could be overwritten at a later lease renewal by an
+  option-42 server whose capture was never switched off. And an interface left
+  without servers never picked one up, because capture had been switched off for
+  the previous interface's configured ones.
+
+  This does not rescue a handshake that has already happened — a server offered
+  in option 42 while capture was off is not applied retroactively — so the second
+  case now waits for a lease renewal rather than never resolving. `API.md`'s
+  "Mixed DHCP and configured NTP" table is updated accordingly.
+
+  Where both profiles hold servers, or neither does, the value written here is
+  the one already in force and nothing changes.
+
 - The adapters' static member definitions are `inline`, so a project may include
   an adapter header from more than one translation unit. Twelve definitions
   across `ESP32WiFiAdapter.h`, `ESP32EthAdapter.h` and `ESP8266WiFiAdapter.h`
@@ -183,6 +207,28 @@ and this project adheres to
 
 ### Added
 
+- `NetworkAdapter::setNtpProfile()`, binding NTP servers to a single interface.
+  An adapter's own profile wins over the manager's device-level one; unbound
+  adapters keep using that, so the two mix and a device with one clock source
+  needs nothing new.
+
+  This restores behaviour that the move of NTP into `NtpProfile` lost. Before it,
+  each profile carried its own servers and the manager read them from *the
+  adapter it was about to start* — the comment at that call site said so
+  outright, and explained why the decision cannot wait: lwIP settles whether to
+  keep DHCP option 42 during the handshake, so a choice made at CONNECTED is
+  already too late. Afterwards the only source was device-level, which at start
+  time necessarily still describes the previous interface, because the event
+  telling the application which one is taking over cannot arrive until that
+  interface is already up. Re-aiming the device-level profile from an event
+  handler — which this library's own examples and documentation recommended —
+  cannot close that gap, and no amount of documenting it would have.
+
+  The effect was confined to interfaces that disagree about holding servers, and
+  it was quiet: an interface meant to take its time server from DHCP kept
+  serving the previous interface's, because `configTime(0, 0, NULL, NULL, NULL)`
+  clears lwIP's server *names* and leaves the resolved addresses in place.
+
 - `setNtpProfile()` / `clearNtpProfile()` — the NTP servers now come from a
   device-level `NtpProfile` (NetworkProfile >= 0.7.0) rather than from whichever
   interface happens to be up. A device has one clock; where interfaces genuinely
@@ -262,6 +308,18 @@ and this project adheres to
 - `test/README.md` promised `8/8 passed`; the Core suite has eleven cases.
 
 ### Examples
+
+- `EthWiFiFallback` can exercise DHCP-provided NTP again, and per interface. The
+  NTP move emptied the two `if` bodies that used to fill `ntp[]` in each network
+  config but left the shells and the `ETH_NTP_DHCP` / `WIFI_NTP_DHCP` flags
+  behind, so both flags controlled nothing: the sketch always configured three
+  servers through a single profile and option 42 was never reached.
+
+  It now keeps one `NtpProfile` per interface and points the manager at the
+  serving one from `onNetworkEvent()`. A flag set to true leaves that profile
+  empty, which is how the manager is told to ask DHCP. Setting the two flags
+  differently is the mixed configuration described under "Mixed DHCP and
+  configured NTP" in API.md, and the handler says so where a reader will meet it.
 
 - `EthWiFiFallback` sets its NTP servers through an `NtpProfile` instead of
   writing `cfg.ntp[]`, which is gone; the profile is device-level, so the servers

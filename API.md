@@ -229,21 +229,36 @@ Current Unix time in seconds, or `0` if not yet synced.
 
 #### `void setNtpProfile(NtpProfile& profile)`
 
-Names the profile the servers are read from, and takes effect on the next
-connect. Device-level: a device has one clock, so the servers are its own
-property, not the interface's. Where interfaces really do reach different time
-servers, keep two profiles and call this from the CONNECTED handler — that
-applies to the handoff in progress, since events are dispatched to the
-application earlier in the same `update()` pass than NTP is configured.
+The servers every interface uses, unless it has one of its own. A device has one
+clock, so this is the usual place to say where it comes from: set it once,
+before `begin()`.
 
-The profile must outlive the manager's use of it. **Configured** servers are read
-from it with `NtpProfile::getServer()`.
+#### `void NetworkAdapter::setNtpProfile(NtpProfile& profile)`
+
+Binds servers to a single interface, overriding the device-level profile for
+that one. Unbound adapters keep using the device-level profile, so the two mix
+freely.
+
+Needed when interfaces genuinely differ — typically when one network offers a
+time server over DHCP (option 42) and the other does not. It has to be said on
+the adapter rather than by re-aiming the device-level profile as the serving
+interface changes: the manager must decide whether to keep option 42 *before* it
+starts an interface, because lwIP settles that during the DHCP handshake, and at
+that moment the application has not yet been told which interface is taking
+over. Only the adapter carries the answer that early.
+
+```cpp
+ethAdapter.setNtpProfile(ethNtp);     // this network's own time server
+wifiAdapter.setNtpProfile(wifiNtp);   // leave empty to take DHCP's
+```
+
+`clearNtpProfile()` on either object undoes the corresponding binding.
 
 #### `void clearNtpProfile()`
 
-Stops reading servers from a profile. Nothing is then configured, which is the
-same state as a profile that was set and left empty: on the next connect the
-manager lets DHCP supply a server (option 42) if the lease carries one.
+Stops reading servers from the device-level profile. Adapters with their own are
+unaffected. For the rest nothing is then configured, and on the next connect the
+manager lets DHCP supply a server instead.
 
 #### `bool getNtp(uint8_t i, char* out, size_t len) const`
 

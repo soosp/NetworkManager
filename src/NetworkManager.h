@@ -361,14 +361,23 @@ public:
     bool isTimeValid() const { return _timeValid; }
 
     /**
-     * @brief Names the profile the NTP servers are read from.
+     * @brief Names the profile the NTP servers are read from, device-wide.
      *
-     * Device-level on purpose: a device has one clock, so the servers it
-     * synchronises from are its own property, not the interface's. Where
-     * interfaces genuinely reach different time servers, keep two profiles and
-     * call this from an event handler when the active interface changes — two
-     * objects say that plainly, where a field inside each interface's
-     * configuration said it by accident.
+     * The common case: a device has one clock, so the servers it synchronises
+     * from are its own property rather than any interface's. Set this once and
+     * every interface uses it.
+     *
+     * Where interfaces must differ — one network offering a time server over
+     * DHCP (option 42), another not — bind a profile to the adapter instead,
+     * with NetworkAdapter::setNtpProfile(). An adapter's own profile wins over
+     * this one, and unbound adapters keep using it, so the two mix freely.
+     *
+     * Per-interface has to be expressed on the adapter rather than by re-aiming
+     * this pointer as the serving interface changes. The manager must know
+     * whether to keep DHCP option 42 *before* it starts an interface, since
+     * lwIP settles that during the handshake; at that moment the application
+     * has not yet been told which interface is taking over, so anything set
+     * here still describes the previous one.
      *
      * Takes effect on the next connect; call clearNtpProfile() to stop using one.
      *
@@ -377,16 +386,13 @@ public:
     void setNtpProfile(NtpProfile& profile) { _ntpProfile = &profile; }
 
     /**
-     * @brief Stops reading servers from a profile set earlier.
+     * @brief Stops reading servers from the device-level profile.
      *
-     * Falls back to nothing: no profile means no configured servers, and no
-     * other source supplies them. The practical effect on the next connect is
-     * that _configureNtp() finds nothing to point SNTP at and instead lets DHCP
-     * provide a server (option 42), exactly as if a profile had been set and
-     * left empty.
-     *
-     * An earlier version fell back to each interface's own NTP fields; those
-     * fields are gone, which is what NtpProfile replaced.
+     * Adapters with a profile of their own are unaffected. For the rest there
+     * is then nothing configured, and no other source supplies servers: on the
+     * next connect the manager finds nothing to point SNTP at and lets DHCP
+     * provide one (option 42) instead, exactly as a profile that was set and
+     * left empty would.
      */
     void clearNtpProfile() { _ntpProfile = nullptr; }
 
@@ -463,7 +469,7 @@ public:
         // Before start(), not after: the interface acts on this when it kicks
         // off its DHCP query, and lwIP decides from it whether to keep option 42
         // at all. Told afterwards, the offer has already been discarded.
-        if (ok) _adapters[0]->setNtpFromDhcp(!_ntpConfigured());
+        if (ok) _adapters[0]->setNtpFromDhcp(!_ntpConfiguredFor(0));
 #endif
         if (ok) ok = _adapters[0]->start();
         return ok;
@@ -629,7 +635,7 @@ public:
 #endif
 
 #if NTP_PROFILE_ENABLED
-            if (idx >= 0) _configureNtp();
+            if (idx >= 0) _configureNtp(idx);
             else          _disableNtp();
 #endif
         }
@@ -651,7 +657,7 @@ public:
                 // own, but a *name* that could not be resolved leaves the
                 // client cycling on a server it never reached. Reconfiguring
                 // starts the resolution again now that there is a resolver.
-                _configureNtp();
+                _configureNtp(idx);
 #endif
             }
         }
@@ -687,11 +693,11 @@ public:
             // and the option-42 data is gone, so DHCP-based NTP never syncs in
             // fallback. Set from the to-be-started adapter's own profile.
             sntp_servermode_dhcp(
-                _ntpConfigured() ? 0 : 1);
+                _ntpConfiguredFor(d.startIdx) ? 0 : 1);
 #endif
 #if NTP_PROFILE_ENABLED
             _adapters[d.startIdx]->setNtpFromDhcp(
-                !_ntpConfigured());
+                !_ntpConfiguredFor(d.startIdx));
 #endif
             _adapters[d.startIdx]->start();
         }
@@ -926,9 +932,11 @@ public:
      *         size @p out at Host::MAX_FQDN_SIZE to rule that out.
      */
     bool getNtp(uint8_t i, char* out, size_t len) const {
-        if (!out || !len) return false;     // _ntpServerAt() and the test below
-        out[0] = '\0';                      // both dereference out
-        _ntpServerAt(i, out, len);
+        if (!out || !len) return false;     // _ntpServerAtFor() and the test
+        out[0] = '\0';                      // below both dereference out
+        int8_t idx = _getConnectedIndex();  // as getHostname()/getMac() do:
+        if (idx < 0) idx = 0;               // fall back to the primary
+        _ntpServerAtFor(idx, i, out, len);
         return out[0] != '\0';
     }
 
@@ -958,10 +966,10 @@ public:
 #elif defined(ARDUINO_ARCH_AVR)
         // AVR keeps no SNTP name registry; report the active profile's name.
         char nbuf[Host::MAX_FQDN_SIZE];
-        NetworkAdapter* active = getActiveAdapter();
+        const int8_t idx = _getConnectedIndex();
         const char* n = nullptr;
-        if (active) { _ntpServerAt(i, nbuf, sizeof(nbuf));
-                      if (nbuf[0] != '\0') n = nbuf; }
+        if (idx >= 0) { _ntpServerAtFor(idx, i, nbuf, sizeof(nbuf));
+                        if (nbuf[0] != '\0') n = nbuf; }
 #else
         const char* n = nullptr;
 #endif
@@ -1217,18 +1225,43 @@ private:
     // through the two accessors below, so neither has to know where they live.
     NtpProfile* _ntpProfile = nullptr;
 
-    /// True if any server is configured. With no profile set there is no NTP:
-    /// nothing else supplies the servers.
-    bool _ntpConfigured() const {
-        return _ntpProfile && _ntpProfile->isConfigured();
+    /**
+     * @brief The NTP servers that apply to adapter @p idx.
+     *
+     * An adapter's own profile wins; the device-level one is the fallback. Both
+     * exist because the two answer different questions. A device with one clock
+     * source sets it once on the manager and never thinks about interfaces. A
+     * device whose networks differ — one offering a time server over DHCP, one
+     * not — has to be able to say which is which, and has to be able to say it
+     * *before* an interface starts, because lwIP settles the option-42 question
+     * during the DHCP handshake. Only the adapter can carry that: at start time
+     * the application has not yet been told which interface is taking over, so
+     * a device-level profile necessarily still holds the previous one's answer.
+     *
+     * @param idx Adapter index; out-of-range yields the device-level profile.
+     */
+    NtpProfile* _ntpProfileFor(int8_t idx) const {
+        if (idx >= 0 && idx < (int8_t)_adapterCount) {
+            NtpProfile* own = _adapters[idx]->ntpProfile();
+            if (own) return own;
+        }
+        return _ntpProfile;
     }
 
-    /// Reads server @p i; leaves @p out empty for an unused slot. Tolerates a
-    /// null/zero-length buffer so callers cannot fault it by forwarding one.
-    void _ntpServerAt(uint8_t i, char* out, size_t len) const {
+    /// True if adapter @p idx has any server configured. Nothing else supplies
+    /// them, so no profile means no NTP.
+    bool _ntpConfiguredFor(int8_t idx) const {
+        NtpProfile* p = _ntpProfileFor(idx);
+        return p && p->isConfigured();
+    }
+
+    /// Reads server @p i for adapter @p idx; leaves @p out empty for an unused
+    /// slot. Tolerates a null/zero-length buffer so callers cannot fault it.
+    void _ntpServerAtFor(int8_t idx, uint8_t i, char* out, size_t len) const {
         if (!out || !len) return;
         out[0] = '\0';
-        if (_ntpProfile) _ntpProfile->getServer(i, out, len);
+        NtpProfile* p = _ntpProfileFor(idx);
+        if (p) p->getServer(i, out, len);
     }
 
     // Configured sync interval (ms). Stored on every platform: AVR's poll loop
@@ -1539,9 +1572,9 @@ private:
      * synchronise from does not depend on which interface came up. Still called
      * on connect, because that is when SNTP has to be (re)started.
      */
-    void _configureNtp() {
+    void _configureNtp(int8_t idx) {
 #if defined(ARDUINO_ARCH_ESP32) || defined(ARDUINO_ARCH_ESP8266)
-        if (!_ntpConfigured()) {
+        if (!_ntpConfiguredFor(idx)) {
             configTime(0, 0, NULL, NULL, NULL);
         } else {
             static char ntp[NtpProfile::SERVER_COUNT][Host::MAX_FQDN_SIZE];
@@ -1555,18 +1588,33 @@ private:
             const char* srv[3] = { NULL, NULL, NULL };
             uint8_t n = 0;
             for (uint8_t i = 0; i < NtpProfile::SERVER_COUNT && n < 3; i++) {
-                _ntpServerAt(i, ntp[i], Host::MAX_FQDN_SIZE);
+                _ntpServerAtFor(idx, i, ntp[i], Host::MAX_FQDN_SIZE);
                 if (ntp[i][0] != '\0') srv[n++] = ntp[i];
             }
             configTime(0, 0, srv[0], srv[1], srv[2]);
         }
-#if defined(ARDUINO_ARCH_ESP8266)
         // Use DHCP-provided NTP servers (option 42) when nothing is configured;
-        // otherwise prefer the configured servers. This is
-        // the ESP8266 counterpart of esp_sntp_servermode_dhcp() on ESP32. The
-        // lwip2 hook compiles to a no-op macro when SNTP_GET_SERVERS_FROM_DHCP
+        // otherwise prefer the configured ones. Both interfaces already made
+        // this choice once, before start(), because lwIP has to know before the
+        // DHCP handshake. Re-asserting it here matters because that earlier
+        // decision was necessarily made from whichever profile was in effect
+        // then — with per-interface profiles swapped from an event handler, that
+        // is the *previous* interface's, since the event that swaps them cannot
+        // arrive until after the interface is up. This is the only point where
+        // the setting can be brought into line with the profile actually in use.
+        //
+        // It does not rescue the lease that has already been handled: a server
+        // offered in option 42 while the mode was off is not applied
+        // retroactively. What it does is stop the two from staying out of step —
+        // configured servers can no longer be overwritten by a later renewal,
+        // and an interface left without servers picks one up at its next
+        // renewal instead of never.
+#if defined(ARDUINO_ARCH_ESP8266)
+        // The lwip2 hook compiles to a no-op macro when SNTP_GET_SERVERS_FROM_DHCP
         // is disabled in the build, so the call is always safe.
-        sntp_servermode_dhcp(_ntpConfigured() ? 0 : 1);
+        sntp_servermode_dhcp(_ntpConfiguredFor(idx) ? 0 : 1);
+#elif defined(ARDUINO_ARCH_ESP32)
+        esp_sntp_servermode_dhcp(_ntpConfiguredFor(idx) ? false : true);
 #endif
         // configTime() (re)starts SNTP at the IDF default cadence, so re-assert
         // any interval the application configured. The restart makes the new
@@ -1581,7 +1629,7 @@ private:
         // Arm the AVR SNTP client for the network that just came up: drop any
         // cached server address (the name may resolve differently here), and
         // request a sync on the next update() iteration.
-        _avrNtpOn          = _ntpConfigured();
+        _avrNtpOn          = _ntpConfiguredFor(idx);
         _avrNtpServerKnown   = false;
         _avrNtpRetryInterval = 0;                        // fresh connect -> normal cadence
         _avrNtpState       = AvrNtpState::IDLE;
@@ -1792,7 +1840,7 @@ private:
      */
     bool _avrNtpResolveServer() {
         char host[Host::MAX_FQDN_SIZE];
-        _ntpServerAt(0, host, Host::MAX_FQDN_SIZE);
+        _ntpServerAtFor(_getConnectedIndex(), 0, host, Host::MAX_FQDN_SIZE);
         if (host[0] == '\0') return false;
 
         // Literal IP: resolve locally, without ever touching DNSClient. This

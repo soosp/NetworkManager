@@ -10,6 +10,10 @@
 
 #include "NetworkProfile.h"
 
+#if NTP_PROFILE_ENABLED
+#  include <NtpProfile.h>
+#endif
+
 #ifndef NETWORK_ADAPTER_MUTEX_TIMEOUT
 #define NETWORK_ADAPTER_MUTEX_TIMEOUT 1000
 #endif
@@ -289,6 +293,35 @@ public:
 
     /** @copydoc setNtpFromDhcp */
     bool ntpFromDhcp() const { return _ntpFromDhcp; }
+
+    /**
+     * @brief Binds this interface's own NTP servers.
+     *
+     * Optional. With no profile bound, the manager falls back to the one given
+     * to its own setNtpProfile(), so a device whose interfaces should share a
+     * clock source needs nothing here.
+     *
+     * Bind one per interface when they must differ — typically when one network
+     * offers a time server over DHCP (option 42) and the other does not. The
+     * manager needs to know which it is dealing with *before* it starts the
+     * interface, because lwIP decides whether to keep option 42 during the DHCP
+     * handshake and cannot be told afterwards. Only the adapter knows that
+     * early; a device-level profile cannot, since on a fallback the application
+     * has not yet been told which interface is taking over.
+     *
+     * Set it before begin(), or from the loop task. The pointer is read on the
+     * loop task without a lock, so re-aiming it from another task (a web
+     * handler) is not synchronised.
+     *
+     * @param profile Servers for this interface. Must outlive the adapter.
+     */
+    void setNtpProfile(NtpProfile& profile) { _ntpProfile = &profile; }
+
+    /// Unbinds, returning this interface to the manager's device-level profile.
+    void clearNtpProfile() { _ntpProfile = nullptr; }
+
+    /// The bound profile, or nullptr when the device-level one applies.
+    NtpProfile* ntpProfile() const { return _ntpProfile; }
 #endif
 
     /**
@@ -368,7 +401,8 @@ public:
 
 protected:
 #if NTP_PROFILE_ENABLED
-    bool _ntpFromDhcp = true;   ///< see setNtpFromDhcp()
+    bool        _ntpFromDhcp = true;    ///< see setNtpFromDhcp()
+    NtpProfile* _ntpProfile  = nullptr; ///< see setNtpProfile(); null = use the manager's
 #endif
 
     // -------------------------------------------------------------------------

@@ -142,9 +142,13 @@ static const IPAddress WIFI_STATIC_DNS    (192, 168,   0,   1);
 static const uint8_t   ETH_PRIO  = 0;
 static const uint8_t   WIFI_PRIO = 1;
 
-// NTP configuration. Set ETH_NTP_DHCP and/or WIFI_NTP_DHCP true if your DHCP
-// server provides NTP servers via DHCP option 42. Otherwise set your preferred,
-// statically configured NTP servers.
+// NTP configuration. Set ETH_NTP_DHCP and/or WIFI_NTP_DHCP true to let that
+// interface take its time server from DHCP option 42; leave it false to use the
+// statically configured servers below. Each flag needs its interface to be on
+// DHCP to have any effect — a statically addressed interface never asks.
+//
+// Setting the two differently is worth trying only deliberately: see the note in
+// onNetworkEvent() about what a handoff can and cannot re-decide.
 static const bool      ETH_NTP_DHCP  = false;
 static const bool      WIFI_NTP_DHCP = false;
 static const char*     NTP0          = "pool.ntp.org";
@@ -152,10 +156,17 @@ static const char*     NTP1          = "time.google.com";
 static const char*     NTP2          = "time.cloudflare.com";
 
 #if NTP_PROFILE_ENABLED
-// One clock, one set of servers: the profile belongs to the device, not to
-// whichever interface is currently carrying the traffic.
-NtpProfile             ntpProfile;
-static constexpr char  NS_NTP[]      = "ntp";
+// One profile per interface, so ETH_NTP_DHCP and WIFI_NTP_DHCP above can be set
+// independently. Each is bound to its adapter in setup(). Leaving one empty is
+// how this sketch says "let DHCP supply the server for this interface" — with
+// nothing configured, the manager asks for option 42 instead.
+//
+// If both interfaces should use the same servers, drop one of these and call
+// NetworkManager.setNtpProfile() once in setup() instead.
+NtpProfile             ethNtp;
+NtpProfile             wifiNtp;
+static constexpr char  NS_NTP_ETH[]  = "ntp_eth";
+static constexpr char  NS_NTP_WIFI[] = "ntp_wifi";
 #endif
 static const uint32_t  NTP_POLL      = 3600000; // NTP poll interval, default 1 hour
 
@@ -198,6 +209,7 @@ void onTimeSync() {
 
 void onNetworkEvent(NetworkManagerClass::Event event, NetworkAdapter& adapter) {
     NetworkStatus s = NetworkManager.getStatus();
+
     switch (event) {
         case NetworkManagerClass::Event::CONNECTED:
             Serial.println("Network: connected");
@@ -290,9 +302,6 @@ void setup() {
             ethCfg.gateway = ETH_STATIC_GATEWAY;
             ethCfg.dns[0]  = ETH_STATIC_DNS;
         }
-        // Three NTP servers are configured for Ethernet adapter
-        if (!ETH_USE_DHCP || !ETH_NTP_DHCP) {
-        }
         ethProfile.setConfig(ethCfg);
         ethProfile.saveCfg("eth");
     }
@@ -315,9 +324,6 @@ void setup() {
         }
         strncpy(wifiCfg.ssid,     WIFI_SSID,     sizeof(wifiCfg.ssid)     - 1);
         strncpy(wifiCfg.password, WIFI_PASSWORD, sizeof(wifiCfg.password) - 1);
-        // One NTP server is configured for WiFi adapter
-        if (!wifiCfg.dhcp || !WIFI_NTP_DHCP) {
-        }
         wifiProfile.setConfig(wifiCfg);
         wifiProfile.saveCfg("wifi");
     }
@@ -330,13 +336,31 @@ void setup() {
 
     // Add adapters and start
 #if NTP_PROFILE_ENABLED
-    if (!ntpProfile.loadCfg(NS_NTP)) {
-        ntpProfile.setServer(NTP0, 0);
-        if (NtpProfile::SERVER_COUNT >= 2) ntpProfile.setServer(NTP1, 1);
-        if (NtpProfile::SERVER_COUNT >= 3) ntpProfile.setServer(NTP2, 2);
-        ntpProfile.saveCfg(NS_NTP);
+    // Ethernet: three servers, or none at all when the lease should provide them.
+    if (!ethNtp.loadCfg(NS_NTP_ETH)) {
+        if (!ETH_USE_DHCP || !ETH_NTP_DHCP) {
+            ethNtp.setServer(NTP0, 0);
+            if (NtpProfile::SERVER_COUNT >= 2) ethNtp.setServer(NTP1, 1);
+            if (NtpProfile::SERVER_COUNT >= 3) ethNtp.setServer(NTP2, 2);
+        }
+        ethNtp.saveCfg(NS_NTP_ETH);
     }
-    NetworkManager.setNtpProfile(ntpProfile);
+    // WiFi: one server, or none.
+    if (!wifiNtp.loadCfg(NS_NTP_WIFI)) {
+        if (!WIFI_USE_DHCP || !WIFI_NTP_DHCP) {
+            wifiNtp.setServer(NTP2, 0);
+        }
+        wifiNtp.saveCfg(NS_NTP_WIFI);
+    }
+    // Bind each profile to its interface. The manager then knows, before it
+    // starts either one, whether that interface should ask DHCP for a time
+    // server — which is the only moment lwIP can still be told. Nothing has to
+    // be re-pointed on a handoff.
+    //
+    // A device whose interfaces share one time source would instead call
+    // NetworkManager.setNtpProfile() once and skip these two lines.
+    ethAdapter.setNtpProfile(ethNtp);
+    wifiAdapter.setNtpProfile(wifiNtp);
 #endif
 
     NetworkManager.addAdapter(ethAdapter);

@@ -353,12 +353,6 @@ void onNetworkEvent(NetworkManagerClass::Event event, NetworkAdapter& adapter) {
     }
     g_evIface   = adapter.getProfile().getInterfaceType();
 
-    // Point the manager at this interface's servers before it configures SNTP.
-    // Safe to do here: events are dispatched earlier in the same update() pass
-    // than _configureNtp(), so this handoff already uses the profile chosen now.
-    NetworkManager.setNtpProfile(
-        g_evIface == NetworkProfile::InterfaceType::WIFI ? wifiNtp : ethNtp);
-
     g_evAtMs    = millis();
     g_evPending = true;
 }
@@ -724,11 +718,13 @@ void setup() {
 
     configureProfiles();
 
-    // One profile per interface, so the sync that follows a handoff names the
-    // server belonging to the interface that took over.
+    // One profile per interface, bound to its adapter, so the sync that follows
+    // a handoff names the server belonging to the interface that took over —
+    // and so the manager knows which is which before it starts either one.
     ethNtp.setServer(ETH_NTP,   0);
     wifiNtp.setServer(WIFI_NTP, 0);
-    NetworkManager.setNtpProfile(ethNtp);      // starting point; swapped per event
+    ethAdapter.setNtpProfile(ethNtp);
+    wifiAdapter.setNtpProfile(wifiNtp);
     NetworkManager.onEvent(onNetworkEvent);
     NetworkManager.onNtpSync(onTimeSync);
     NetworkManager.addAdapter(ethAdapter);

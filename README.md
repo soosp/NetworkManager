@@ -124,7 +124,7 @@ void setup() {
     wifiProfile.setConfig(cfg);
 
     NetworkManager.onEvent(onNetworkEvent);
-    // The NTP servers are a device-level setting: one NtpProfile, handed to the
+    // The NTP servers, device-wide: one NtpProfile, handed to the
     // manager, rather than a copy inside every interface's configuration.
     ntpProfile.setServer("pool.ntp.org", 0);
     NetworkManager.setNtpProfile(ntpProfile);
@@ -189,15 +189,22 @@ a `dns` array; with `includeNtp` it appends an `ntp` object (`synced` + a
 
 ## NTP servers
 
-The servers come from an `NtpProfile` handed over with `setNtpProfile()` — a
-device-level setting, since a device has one clock. Where interfaces genuinely
-reach different time servers, keep two profiles and switch from the CONNECTED
-handler: that applies to the handoff in progress, because events are dispatched
-to the application earlier in the same `update()` pass than NTP is configured.
-The FallbackTestRunner example does exactly this.
+The servers come from an `NtpProfile` handed over with
+`NetworkManager.setNtpProfile()` — a device-level setting, since a device has
+one clock.
 
-With no profile set, nothing is configured and the interface's DHCP-provided
-servers are used, if the lease carries any.
+Where interfaces genuinely reach different time servers, bind a profile to the
+adapter instead, with `NetworkAdapter::setNtpProfile()`. An adapter's own
+profile wins; unbound adapters keep using the device-level one, so a device can
+mix the two. This matters most when one network offers a time server over DHCP
+(option 42) and the other does not: the manager has to know which it is dealing
+with *before* it starts an interface, since lwIP settles the option-42 question
+during the DHCP handshake, and at that moment the application has not yet been
+told which interface is taking over. `EthWiFiFallback` and `FallbackTestRunner`
+both bind per interface.
+
+With no profile applying to an interface, nothing is configured and that
+interface's DHCP-provided servers are used, if the lease carries any.
 
 ## NTP (two views)
 
