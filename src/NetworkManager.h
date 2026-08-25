@@ -1859,7 +1859,12 @@ private:
      */
     bool _avrNtpResolveServer() {
         char host[Host::MAX_FQDN_SIZE];
-        _ntpServerAtFor(_getConnectedIndex(), 0, host, Host::MAX_FQDN_SIZE);
+        // Same fallback as getNtp(): the serving interface's profile, or the
+        // primary's when nothing is connected. Only reached while connected in
+        // practice, but the two should not answer differently.
+        int8_t idx = _getConnectedIndex();
+        if (idx < 0) idx = 0;
+        _ntpServerAtFor(idx, 0, host, Host::MAX_FQDN_SIZE);
         if (host[0] == '\0') return false;
 
         // Literal IP: resolve locally, without ever touching DNSClient. This
