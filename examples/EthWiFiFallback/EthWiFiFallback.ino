@@ -273,6 +273,25 @@ void onNetworkEvent(NetworkManagerClass::Event event, NetworkAdapter& adapter) {
 // -----------------------------------------------------------------------------
 // Setup
 // -----------------------------------------------------------------------------
+// Configuration guard
+// -----------------------------------------------------------------------------
+
+// setConfig() validates the whole struct and stores nothing if any field fails,
+// so an unchecked call leaves the profile at its defaults while the sketch runs
+// on as if it had been configured — an empty SSID looks like a WiFi fault rather
+// than a typo at the top of this file. checkConfig() names the field that
+// failed; halting is right for a sketch, where there is no one to re-enter it.
+static void applyOrHalt(bool ok, const __FlashStringHelper* what,
+                        NetworkProfile::ConfigCheck why) {
+    if (ok) return;
+    Serial.print(what);
+    Serial.print(F(" config rejected: "));
+    Serial.println(NetworkProfile::configCheckName(why));
+    Serial.println(F("Check the settings at the top of this sketch."));
+    while (true) delay(1000);
+}
+
+// -----------------------------------------------------------------------------
 
 void setup() {
     Serial.begin(115200);
@@ -302,7 +321,8 @@ void setup() {
             ethCfg.gateway = ETH_STATIC_GATEWAY;
             ethCfg.dns[0]  = ETH_STATIC_DNS;
         }
-        ethProfile.setConfig(ethCfg);
+        applyOrHalt(ethProfile.setConfig(ethCfg),
+                    F("ETH"), NetworkProfile::checkConfig(ethCfg));
         ethProfile.saveCfg("eth");
     }
 
@@ -324,7 +344,8 @@ void setup() {
         }
         strncpy(wifiCfg.ssid,     WIFI_SSID,     sizeof(wifiCfg.ssid)     - 1);
         strncpy(wifiCfg.password, WIFI_PASSWORD, sizeof(wifiCfg.password) - 1);
-        wifiProfile.setConfig(wifiCfg);
+        applyOrHalt(wifiProfile.setConfig(wifiCfg),
+                    F("WiFi"), WiFiProfile::checkConfig(wifiCfg));
         wifiProfile.saveCfg("wifi");
     }
 
@@ -338,17 +359,22 @@ void setup() {
 #if NTP_PROFILE_ENABLED
     // Ethernet: three servers, or none at all when the lease should provide them.
     if (!ethNtp.loadCfg(NS_NTP_ETH)) {
+        // setServer() refuses anything that is not a valid FQDN or IP literal,
+        // so a typo would otherwise leave the slot empty and the clock quietly
+        // unsynchronised.
         if (!ETH_USE_DHCP || !ETH_NTP_DHCP) {
-            ethNtp.setServer(NTP0, 0);
-            if (NtpProfile::SERVER_COUNT >= 2) ethNtp.setServer(NTP1, 1);
-            if (NtpProfile::SERVER_COUNT >= 3) ethNtp.setServer(NTP2, 2);
+            bool ok = ethNtp.setServer(NTP0, 0);
+            if (NtpProfile::SERVER_COUNT >= 2) ok &= ethNtp.setServer(NTP1, 1);
+            if (NtpProfile::SERVER_COUNT >= 3) ok &= ethNtp.setServer(NTP2, 2);
+            if (!ok) Serial.println(F("ETH: an NTP server was rejected."));
         }
         ethNtp.saveCfg(NS_NTP_ETH);
     }
     // WiFi: one server, or none.
     if (!wifiNtp.loadCfg(NS_NTP_WIFI)) {
         if (!WIFI_USE_DHCP || !WIFI_NTP_DHCP) {
-            wifiNtp.setServer(NTP2, 0);
+            if (!wifiNtp.setServer(NTP2, 0))
+                Serial.println(F("WiFi: the NTP server was rejected."));
         }
         wifiNtp.saveCfg(NS_NTP_WIFI);
     }

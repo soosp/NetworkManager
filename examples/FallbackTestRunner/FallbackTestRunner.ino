@@ -619,6 +619,26 @@ static void printSummary() {
 // Profile configuration for the current case
 // -----------------------------------------------------------------------------
 
+
+// -----------------------------------------------------------------------------
+// Configuration guard
+// -----------------------------------------------------------------------------
+
+// setConfig() validates the whole struct and stores nothing if any field fails,
+// so an unchecked call leaves the profile at its defaults while the sketch runs
+// on as if it had been configured — an empty SSID looks like a WiFi fault rather
+// than a typo at the top of this file. checkConfig() names the field that
+// failed; halting is right for a sketch, where there is no one to re-enter it.
+static void applyOrHalt(bool ok, const __FlashStringHelper* what,
+                        NetworkProfile::ConfigCheck why) {
+    if (ok) return;
+    Serial.print(what);
+    Serial.print(F(" config rejected: "));
+    Serial.println(NetworkProfile::configCheckName(why));
+    Serial.println(F("Check the settings at the top of this sketch."));
+    while (true) delay(1000);
+}
+
 static void configureProfiles() {
     bool wifiFirst = wifiPrimary();
     bool statik    = useStatic();
@@ -631,7 +651,8 @@ static void configureProfiles() {
         eth.gateway = ETH_STATIC_GATEWAY; eth.dns[0] = ETH_STATIC_DNS;
     }
 
-    ethProfile.setConfig(eth);
+    applyOrHalt(ethProfile.setConfig(eth),
+                F("ETH"), NetworkProfile::checkConfig(eth));
 
     WiFiProfile::WiFiConfig wifi;
     wifi.dhcp     = !statik;
@@ -643,7 +664,8 @@ static void configureProfiles() {
     strncpy(wifi.ssid,     WIFI_SSID,     sizeof(wifi.ssid)     - 1);
     strncpy(wifi.password, WIFI_PASSWORD, sizeof(wifi.password) - 1);
 
-    wifiProfile.setConfig(wifi);
+    applyOrHalt(wifiProfile.setConfig(wifi),
+                F("WiFi"), WiFiProfile::checkConfig(wifi));
 }
 
 // -----------------------------------------------------------------------------
@@ -721,8 +743,8 @@ void setup() {
     // One profile per interface, bound to its adapter, so the sync that follows
     // a handoff names the server belonging to the interface that took over —
     // and so the manager knows which is which before it starts either one.
-    ethNtp.setServer(ETH_NTP,   0);
-    wifiNtp.setServer(WIFI_NTP, 0);
+    if (!ethNtp.setServer(ETH_NTP, 0) || !wifiNtp.setServer(WIFI_NTP, 0))
+        Serial.println(F("An NTP server was rejected - check ETH_NTP/WIFI_NTP."));
     ethAdapter.setNtpProfile(ethNtp);
     wifiAdapter.setNtpProfile(wifiNtp);
     NetworkManager.onEvent(onNetworkEvent);

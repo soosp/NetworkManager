@@ -190,16 +190,31 @@ void setup() {
             cfg.gateway = STATIC_GATEWAY;
             cfg.dns[0]  = STATIC_DNS;
         }
-        wifiProfile.setConfig(cfg);
+        // setConfig() validates the whole struct and stores nothing if any
+        // field fails, so an unchecked call can leave the profile empty and the
+        // sketch running on with no SSID — which looks like a WiFi fault, not a
+        // configuration mistake. checkConfig() names the field that failed.
+        if (!wifiProfile.setConfig(cfg)) {
+            Serial.print(F("WiFi config rejected: "));
+            Serial.println(NetworkProfile::configCheckName(
+                               WiFiProfile::checkConfig(cfg)));
+            Serial.println(F("Check the settings at the top of this sketch."));
+            while (true) delay(1000);      // nothing below would work
+        }
 
         #if NTP_PROFILE_ENABLED
         // One server is enough for a demo; the profile holds
         // NtpProfile::SERVER_COUNT of them. Leaving it empty on a DHCP network lets
         // the lease provide one instead (option 42), which is what NTP_DHCP selects.
+        // setServer() refuses anything that is not a valid FQDN or IP literal,
+        // so a typo here would otherwise leave the slot empty and the clock
+        // quietly unsynchronised.
         #  if defined(ARDUINO_ARCH_AVR)
-        ntpProfile.setServer(NTP, 0);        // AVR has no DHCP-provided NTP
+        if (!ntpProfile.setServer(NTP, 0))   // AVR has no DHCP-provided NTP
+            Serial.println(F("NTP server rejected - check NTP above."));
         #  else
-        if (!USE_DHCP || !NTP_DHCP) ntpProfile.setServer(NTP, 0);
+        if ((!USE_DHCP || !NTP_DHCP) && !ntpProfile.setServer(NTP, 0))
+            Serial.println(F("NTP server rejected - check NTP above."));
         #  endif
         ntpProfile.saveCfg(NTP_NS);
         #endif

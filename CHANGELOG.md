@@ -309,6 +309,21 @@ and this project adheres to
 
 ### Examples
 
+- Every `setConfig()` and `setServer()` call is checked. `setConfig()` validates
+  the whole struct and stores nothing if any field fails, so the unchecked calls
+  the examples used to make would leave a profile at its defaults while the
+  sketch ran on as if it had been configured. An empty SSID then presents as a
+  WiFi fault rather than as a typo at the top of the file — a debugging session
+  that starts in entirely the wrong place. The same went for `setServer()`,
+  where a mistyped NTP name left the slot empty and the clock quietly
+  unsynchronised.
+
+  The four sketches now report the offending field through
+  `NetworkProfile::configCheckName()`, and the two fallback sketches share an
+  `applyOrHalt()` helper that stops rather than continuing on an unusable
+  profile, which is the right answer for a sketch: there is nobody to re-enter
+  it.
+
 - `EthWiFiFallback` can exercise DHCP-provided NTP again, and per interface. The
   NTP move emptied the two `if` bodies that used to fill `ntp[]` in each network
   config but left the shells and the `ETH_NTP_DHCP` / `WIFI_NTP_DHCP` flags
