@@ -37,6 +37,11 @@
  *   Override ESP32_WIFI_ADAPTER_DHCP_TIMEOUT in platformio.ini or before
  *   including this header (default: 15000 ms).
  *
+ *   The window covers the scan as well as the association and the lease, and
+ *   start() scans every channel (see there for why), which costs roughly
+ *   1.5-2 s. The default leaves ample room; a build that shortens the timeout
+ *   should keep that in mind.
+ *
  * @note Only one ESP32WiFiAdapter instance may be active at a time,
  *       as the ESP32 supports a single STA interface. start() returns
  *       false if another instance is already active.
@@ -88,6 +93,25 @@ public:
         WiFi.setAutoReconnect(false);
         WiFi.mode(WIFI_STA);
         WiFi.setSleep(false);
+
+        // Scan every channel before choosing, rather than taking the first
+        // matching AP found.
+        //
+        // The core defaults to WIFI_FAST_SCAN, which stops at the first beacon
+        // carrying the right SSID. Its companion setting, sort_method, already
+        // defaults to WIFI_CONNECT_AP_BY_SIGNAL — but with one candidate there
+        // is nothing to sort, so on a network with several access points the
+        // choice is effectively arbitrary. That is fine at home and wrong here:
+        // a distant AP may refuse the association outright where a controller
+        // enforces a signal floor, and the symptom is a bare
+        // WIFI_REASON_ASSOC_FAIL with no hint of its cause. Retrying does not
+        // help either, since the next scan is just as arbitrary.
+        //
+        // The cost is the scan: roughly 1.5-2 s for the 2.4 GHz channels, taken
+        // out of the CONNECTING budget below. A library whose purpose is to fail
+        // over reliably can afford that far more easily than it can afford
+        // associating with the wrong access point.
+        WiFi.setScanMethod(WIFI_ALL_CHANNEL_SCAN);
 
         char password[WiFiProfile::MAX_PASSWORD_SIZE];
         _wifiProfile.getPassword(password, sizeof(password));

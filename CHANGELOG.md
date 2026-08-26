@@ -267,6 +267,24 @@ and this project adheres to
 
 ### Changed
 
+- ESP32 Wi-Fi scans every channel before choosing an access point, where the
+  core defaults to stopping at the first beacon carrying the right SSID. The
+  companion setting that ranks candidates by signal is already the core's
+  default, but with one candidate there is nothing to rank, so on a network with
+  several access points the choice was effectively arbitrary.
+
+  That is harmless at home and wrong for a library whose purpose is to fail over
+  reliably. Where a controller enforces a signal floor, a distant AP refuses the
+  association outright, and the symptom is a bare `WIFI_REASON_ASSOC_FAIL` with
+  nothing pointing at the cause — retrying does not help, because the next scan
+  is just as arbitrary, so the interface comes up only when a scan happens to
+  find the near AP first. Measured on a controller-managed network: minutes of
+  failed attempts before, about six seconds after.
+
+  The cost is the scan itself, roughly 1.5-2 s on the 2.4 GHz channels, taken
+  from the same window as the association and the lease. The default
+  `ESP32_WIFI_ADAPTER_DHCP_TIMEOUT` of 15 s leaves ample room; a build that
+  shortens it should account for the scan.
 - `NetworkAdapter::requestApply()` is public. Its documentation has always
   described it as the way to re-apply a profile from a task other than the
   manager's — a web request handler, say — but it sat in the protected section,
