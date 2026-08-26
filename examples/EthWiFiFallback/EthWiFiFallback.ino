@@ -309,6 +309,13 @@ void setup() {
     if (ethProfile.loadCfg("eth")) {
         Serial.println("ETH:  saved configuration loaded - clearing it.");
         ethProfile.clearCfg("eth");
+        #if NTP_PROFILE_ENABLED
+        // Cleared together with the network profile so the two namespaces stay
+        // in step. Left behind, the stored NTP settings would outlive every
+        // cycle and the constants at the top of this sketch would stop deciding
+        // anything.
+        ethNtp.clearCfg(NS_NTP_ETH);
+        #endif
     } else {
         Serial.println("ETH:  no saved configuration - applying defaults.");
         NetworkProfile::NetworkConfig ethCfg;
@@ -330,6 +337,13 @@ void setup() {
     if (wifiProfile.loadCfg("wifi")) {
         Serial.println("WiFi: saved configuration loaded - clearing it.");
         wifiProfile.clearCfg("wifi");
+        #if NTP_PROFILE_ENABLED
+        // Cleared together with the network profile so the two namespaces stay
+        // in step. Left behind, the stored NTP settings would outlive every
+        // cycle and the constants at the top of this sketch would stop deciding
+        // anything.
+        wifiNtp.clearCfg(NS_NTP_WIFI);
+        #endif
     } else {
         Serial.println("WiFi: no saved configuration - applying defaults.");
         WiFiProfile::WiFiConfig wifiCfg;

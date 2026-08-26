@@ -256,6 +256,13 @@ void setup() {
         Serial.println(F("Saved configuration found and loaded."));
         Serial.println(F("Clearing configuration (it will be saved again next boot)."));
         ethProfile.clearCfg("eth");
+        #if NTP_PROFILE_ENABLED
+        // Cleared together with the network profile so the two namespaces stay
+        // in step. Left behind, the stored NTP settings would outlive every
+        // cycle and the constants at the top of this sketch would stop deciding
+        // anything.
+        ntpProfile.clearCfg(NTP_NS);
+        #endif
     } else {
         Serial.println(F("No saved configuration - applying defaults."));
 
@@ -280,22 +287,6 @@ void setup() {
             while (true) delay(1000);      // nothing below would work
         }
 
-        #if NTP_PROFILE_ENABLED
-        // One server is enough for a demo; the profile holds
-        // NtpProfile::SERVER_COUNT of them. Leaving it empty on a DHCP network lets
-        // the lease provide one instead (option 42), which is what NTP_DHCP selects.
-        // setServer() refuses anything that is not a valid FQDN or IP literal,
-        // so a typo here would otherwise leave the slot empty and the clock
-        // quietly unsynchronised.
-        #  if defined(ARDUINO_ARCH_AVR)
-        if (!ntpProfile.setServer(NTP, 0))   // AVR has no DHCP-provided NTP
-            Serial.println(F("NTP server rejected - check NTP above."));
-        #  else
-        if ((!USE_DHCP || !NTP_DHCP) && !ntpProfile.setServer(NTP, 0))
-            Serial.println(F("NTP server rejected - check NTP above."));
-        #  endif
-        ntpProfile.saveCfg(NTP_NS);
-        #endif
 
         Serial.println(F("Saving configuration."));
         ethProfile.saveCfg("eth");
@@ -308,7 +299,27 @@ void setup() {
 
     NetworkManager.addAdapter(ethAdapter);
     #if NTP_PROFILE_ENABLED
-    ntpProfile.loadCfg(NTP_NS);
+    // Own namespace, own first-run cycle — but cleared alongside the network
+    // profile above, so the two stay in step and the constants below keep
+    // deciding. Nested inside that demo instead, the NTP settings would only be
+    // re-derived on its "no saved configuration" boots, and NTP_DHCP would
+    // appear to take effect a boot late.
+    //
+    // Leaving every slot empty is what asks the lease for a server (option 42);
+    // that is what NTP_DHCP selects. AVR has no DHCP-provided NTP, so a server
+    // is always configured there and NTP_DHCP does not exist. setServer()
+    // refuses anything that is not a valid FQDN or IP literal, so a typo would
+    // otherwise leave the slot empty and the clock quietly unsynchronised.
+    if (!ntpProfile.loadCfg(NTP_NS)) {
+    #  if defined(ARDUINO_ARCH_AVR)
+        const bool wantStatic = true;      // AVR has no DHCP-provided NTP
+    #  else
+        const bool wantStatic = !USE_DHCP || !NTP_DHCP;
+    #  endif
+        if (wantStatic && !ntpProfile.setServer(NTP, 0))
+            Serial.println(F("NTP server rejected - check NTP above."));
+        ntpProfile.saveCfg(NTP_NS);
+    }
     NetworkManager.setNtpProfile(ntpProfile);
     #endif
     NetworkManager.begin();

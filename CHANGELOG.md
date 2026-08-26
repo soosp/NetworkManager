@@ -398,6 +398,25 @@ and this project adheres to
 
 ### Examples
 
+- `WiFi`, `Ethernet` and `EthWiFiFallback` keep the constants at the top of the
+  sketch in charge of the NTP settings. The NTP block sat inside the network
+  profile's save/load/clear demo, in the branch that runs only when nothing is
+  stored, while `loadCfg()` for the NTP namespace ran unconditionally after it.
+  On the boots where the demo took its other branch nothing read `NTP_DHCP`, and
+  since that demo alternates by design the flag appeared to take effect a boot
+  late: set to true, the first boot after flashing still synchronised from
+  `pool.ntp.org` and only the second took the server from DHCP.
+
+  The NTP profile now has its own first-run cycle, and is cleared alongside the
+  network profile so the two namespaces stay in step. The value the demo reloads
+  is then the one the previous boot derived from the flag, so the flag decides
+  every boot — and a namespace left over from an earlier run clears itself within
+  one cycle instead of outliving the sketch.
+- `WiFi`: the NTP block no longer carries an AVR branch. `WiFiAdapter` `#error`s
+  on AVR, so it could never compile, but it called `setServer()` unconditionally
+  and so read as though `NTP_DHCP` did not matter. `Ethernet`, which does build
+  on AVR, keeps its branch: there is no DHCP-provided NTP there and `NTP_DHCP` is
+  not declared.
 - Every `setConfig()` and `setServer()` call is checked. `setConfig()` validates
   the whole struct and stores nothing if any field fails, so the unchecked calls
   the examples used to make would leave a profile at its defaults while the
