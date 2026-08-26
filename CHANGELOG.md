@@ -267,6 +267,25 @@ and this project adheres to
 
 ### Changed
 
+- `NetworkAdapter::requestApply()` is public. Its documentation has always
+  described it as the way to re-apply a profile from a task other than the
+  manager's — a web request handler, say — but it sat in the protected section,
+  so no application could reach it. The mechanism behind it was already public
+  in effect: `update()` has always consumed the flag.
+
+  This matters for the pattern the portal libraries document. `AsyncConfigPortal`
+  deliberately saves a profile and leaves applying it to the application, and on
+  ESP32 that callback runs on the async server's task, where
+  `applyProfile()` would do the stop()/start() on the wrong one. Without
+  `requestApply()` an application had to set its own flag and call
+  `applyProfile()` from `loop()` — reimplementing, and possibly getting wrong,
+  what this class already does.
+
+  `applyProfile()`'s own documentation is corrected with it: it claimed to be
+  "safe to call from any task" and suggested calling it after a change made
+  "via the web interface", which is exactly the case it does not suit. The two
+  are now described as the pair they are — immediate on the manager's task,
+  deferred from anywhere else. `API.md` had this right already.
 - The global `NetworkManager` is a reference rather than a macro. On ESP32 the
   Arduino core has a class of the same name in its `Network` library, and a
   macro rewrote every later occurrence of the word — including that class's own

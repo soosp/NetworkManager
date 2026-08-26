@@ -399,6 +399,26 @@ public:
      */
     void setOnStateChange(StateChangeCb cb) { _onStateChange = cb; }
 
+    /**
+     * @brief Asks for the profile to be re-applied, from any task.
+     *
+     * Sets a flag; update() does the stop()/start() on the task that drives the
+     * manager. Use this whenever the caller is not on that task — a web request
+     * handler on ESP32 runs on the async server's task, and tearing an
+     * interface down from there is the kind of cross-task hardware work the
+     * whole deferral machinery exists to avoid.
+     *
+     * NetworkManager::applyProfile() is the other half of the pair: it stops
+     * and starts immediately, which is what a caller already on the manager's
+     * task wants, and only that caller.
+     *
+     * Update the profile first — this re-applies whatever it holds when
+     * update() gets to it, not a snapshot taken here. Only one request is
+     * pending at a time; a second before update() runs replaces the first,
+     * which changes nothing, since both ask for the same thing.
+     */
+    void requestApply() { _pendingApply = true; }
+
 protected:
 #if NTP_PROFILE_ENABLED
     bool        _ntpFromDhcp = true;    ///< see setNtpFromDhcp()
@@ -475,22 +495,6 @@ protected:
     // -------------------------------------------------------------------------
     // Deferred profile re-apply
     // -------------------------------------------------------------------------
-
-    /**
-     * @brief Requests a profile re-apply from any task.
-     *
-     * Thread-safe alternative to NetworkManager::applyProfile() for use from
-     * tasks other than the network management task (e.g. a web server task).
-     * The actual stop()/start() sequence is deferred to the next update() call
-     * on the network management task.
-     *
-     * Only one pending request is held at a time. Calling requestApply() again
-     * before update() processes the previous request is safe but overwrites it
-     * (both calls would result in the same action anyway).
-     *
-     * @note The profile must be updated before calling this method.
-     */
-    void requestApply() { _pendingApply = true; }
 
 private:
     /**

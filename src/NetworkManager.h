@@ -531,17 +531,25 @@ public:
     }
 
     /**
-     * @brief Re-applies the profile of the given adapter.
+     * @brief Re-applies the profile of the given adapter, here and now.
      *
-     * Stops the adapter if active, then restarts it with the current
-     * profile settings. Safe to call from any task — thread-safe.
+     * Stops the adapter if active, then restarts it with whatever the profile
+     * currently holds. The stop and the start happen on the calling task, so
+     * call this only from the task that drives update() — normally loop().
      *
-     * Typical use: call after modifying a profile via the web interface
-     * to apply the new settings immediately.
+     * From anywhere else, use NetworkAdapter::requestApply(), which sets a flag
+     * and lets update() do the work on the right task. A web request handler is
+     * the usual case: on ESP32 it runs on the async server's task, where tearing
+     * an interface down is the cross-task hardware work the rest of this class
+     * goes to some trouble to defer.
+     *
+     * The registration check is taken under the lock, but the restart is not:
+     * this is not a critical section, and holding the mutex across stop()/start()
+     * would deadlock against the state-change handler they trigger.
      *
      * @param adapter The adapter whose profile has changed.
-     * @return true if the restart was initiated, false on mutex failure
-     *         or if the adapter is not registered.
+     * @return true if the restart was initiated, false on mutex timeout or if
+     *         the adapter is not registered.
      */
     bool applyProfile(NetworkAdapter& adapter) {
         if (!_lock()) return false;
