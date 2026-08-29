@@ -9,6 +9,10 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Fixed
+
+- Mark `run_tests.sh` executable
+
 ## [0.3.0] - 2026-08-26
 
 ### Removed
