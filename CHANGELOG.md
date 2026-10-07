@@ -9,6 +9,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-07
+
 ### Added
 
 - `NetworkStatus` carries the interface's own `mac`, and `statusToJson()`
@@ -702,7 +704,8 @@ First public release.
   `EthWiFiFallback` (ESP).
 - API reference (`API.md`) and testing notes (`Testing.md`).
 
-[Unreleased]: https://github.com/soosp/NetworkManager/compare/0.3.0...HEAD
+[Unreleased]: https://github.com/soosp/NetworkManager/compare/0.4.0...HEAD
+[0.4.0]: https://github.com/soosp/NetworkManager/compare/0.3.0...0.4.0
 [0.3.0]: https://github.com/soosp/NetworkManager/compare/0.2.0...0.3.0
 [0.2.0]: https://github.com/soosp/NetworkManager/compare/0.1.8...0.2.0
 [0.1.8]: https://github.com/soosp/NetworkManager/compare/0.1.7...0.1.8
