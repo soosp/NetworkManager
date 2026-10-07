@@ -1037,7 +1037,8 @@ public:
      * whose name may be a full-length FQDN. Use STATUS_JSON_SIZE to size a buffer.
      */
     static constexpr size_t STATUS_JSON_LEN =
-        200
+        // 200 for the fixed fields, 27 for ,"mac":"AA:BB:CC:DD:EE:FF"
+        227
         // ,"link":{"ssid":"<escaped>","rssi":-100,"bssid":"XX:..:XX"}
         // Worst case: every SSID byte escaped as \uXXXX (6 chars each).
         + (LinkInfo::MAX_SSID_SIZE * 6 + 64)
@@ -1060,7 +1061,8 @@ public:
      * resolved/numeric ip; a DHCP-provided server shows an empty name.
      *
      * Example (includeNtp = true):
-     * {\"interface\":\"eth\",\"connected\":true,\"ip\":\"172.20.11.78\",
+     * {\"interface\":\"eth\",\"connected\":true,\"mac\":\"AA:BB:CC:DD:EE:FF\",
+     *  \"ip\":\"172.20.11.78\",
      *  \"mask\":\"255.255.0.0\",\"gw\":\"172.20.0.1\",
      *  \"dns\":[\"172.20.0.121\",\"172.20.0.122\"],
      *  \"ntp\":{\"synced\":true,\"servers\":[
@@ -1088,6 +1090,28 @@ public:
         ok = ok && json_fitted(snprintf_P(buf, sizeof(buf), PSTR("\"interface\":\"%s\",\"connected\":%s"),
                  ifn, s.connected ? "true" : "false"), sizeof(buf));
         ok = ok && _jsonCat(out, buf, len);
+        // From the snapshot, not from a second getMac() call: that would run the
+        // adapter selection again, and the two selections differ — getStatus()
+        // returns an empty snapshot when nothing is connected, while getMac()
+        // falls back to the first adapter. The MAC would then describe an
+        // interface the addresses below it do not.
+        //
+        // The device's own address, which is not the BSSID further down: that
+        // identifies the access point, this identifies the device. It is what a
+        // DHCP lease table or a router's client list is searched by. All zeros
+        // means no adapter produced this snapshot, so the field is omitted
+        // rather than emitted empty.
+        bool hasMac = false;
+        for (uint8_t i = 0; i < NetworkProfile::MAC_LEN; i++)
+            if (s.mac[i]) { hasMac = true; break; }
+        if (hasMac) {
+            char macStr[18];
+            ok = ok && NetworkProfile::macToStr(macStr, sizeof(macStr), s.mac);
+            ok = ok && json_fitted(snprintf_P(buf, sizeof(buf), PSTR(",\"mac\":\"%s\""),
+                        macStr), sizeof(buf));
+            ok = ok && _jsonCat(out, buf, len);
+        }
+
         ok = ok && NetworkProfile::ipToStr(ipStr, sizeof(ipStr), s.localIP);
         ok = ok && json_fitted(snprintf_P(buf, sizeof(buf), PSTR(",\"ip\":\"%s\""), ipStr), sizeof(buf));
         ok = ok && _jsonCat(out, buf, len);

@@ -73,6 +73,27 @@ struct NetworkStatus {
     IPAddress subnetMask;                              ///< Subnet mask.
     IPAddress gateway;                                 ///< Default gateway.
     IPAddress dns[NetworkProfile::DNS_SERVER_COUNT];   ///< DNS servers.
+
+    /**
+     * @brief The interface's own MAC address.
+     *
+     * Part of the snapshot rather than a separate call, so it always describes
+     * the same interface as the addresses beside it. Asking an adapter for its
+     * status and then asking the manager for a MAC is two independent
+     * selections, and on a device with more than one interface they can
+     * disagree — which is precisely what a snapshot exists to prevent.
+     *
+     * Filled by each adapter's snapshot builder, not by the base class: every
+     * adapter here owns its MAC through its profile, but an interface that
+     * learns its address from the hardware would have to undo a base-class
+     * default rather than simply state its own.
+     *
+     * Valid whether or not the interface is connected. It is set at
+     * construction, so a snapshot carries it before the interface has ever
+     * started, and kept across a disconnect, since losing an address is what
+     * being disconnected means and the hardware still has a MAC.
+     */
+    NetworkProfile::MACAddress mac = {0, 0, 0, 0, 0, 0};
 };
 
 /**
@@ -160,6 +181,11 @@ public:
         , _onStateChange(nullptr)
     {
         _status.interfaceType = profile.getInterfaceType();
+        // A starting value, so the snapshot carries a MAC before the interface
+        // has ever been started and built one. From the profile, which is where
+        // every adapter in this library takes it from; one that does not will
+        // replace it on its first _buildStatus().
+        profile.getMac(_status.mac);
     }
 
     virtual ~NetworkAdapter() = default;
@@ -474,9 +500,17 @@ protected:
     /** @brief Clears the cached snapshot (subclasses call this on disconnect/stop). */
     void _clearStatus() {
         if (!_lock()) return;
+        // Both of these survive the clear, and for the same reason: they say
+        // what the interface is, not what its link is doing. Kept rather than
+        // re-read, so whatever the adapter last reported stands — a MAC taken
+        // from hardware is not replaced here by one from the profile.
         NetworkProfile::InterfaceType t = _status.interfaceType;
+        NetworkProfile::MACAddress    m;
+        memcpy(m, _status.mac, NetworkProfile::MAC_LEN);
+
         _status = NetworkStatus{};
         _status.interfaceType = t;
+        memcpy(_status.mac, m, NetworkProfile::MAC_LEN);
         _unlock();
     }
 

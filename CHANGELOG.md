@@ -9,6 +9,35 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- `NetworkStatus` carries the interface's own `mac`, and `statusToJson()`
+  reports it as `"mac"`.
+
+  In the snapshot rather than fetched beside it. Asking an adapter for its
+  status and then asking the manager for a MAC runs the adapter selection twice,
+  and the two selections differ — `getStatus()` returns an empty snapshot when
+  nothing is connected, while `getMac()` falls back to the first adapter — so
+  the MAC could describe an interface the addresses did not.
+
+  Filled by each adapter's `_buildStatus()`, where the rest of the snapshot is
+  assembled, rather than added in the base class on the way to storage. Every
+  adapter here takes its MAC from its profile, so one line in the base class
+  would have covered all five; but an interface that learns its address from the
+  hardware would then have to undo that default rather than simply state its
+  own, and a snapshot whose fields are gathered in two different places is one
+  more thing to go looking for.
+
+  Set at construction too, so a snapshot carries a MAC before the interface has
+  ever started, and kept across `_clearStatus()` alongside `interfaceType` —
+  both say what the interface is, not what its link is doing. Kept rather than
+  re-read, so a hardware-derived MAC is not replaced by one from the profile.
+
+  Not the same thing as the `bssid` in the `link` object: that identifies the
+  access point, this identifies the device. It is what a DHCP lease table or a
+  router's client list is searched by, and on a unit with no serial console
+  there was nowhere to read it from. `STATUS_JSON_LEN` grows by 27 bytes.
+
 ### Fixed
 
 - Mark `run_tests.sh` executable

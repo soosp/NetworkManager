@@ -231,6 +231,12 @@ private:
     NetworkStatus _buildStatus() const {
         NetworkStatus s;
         s.interfaceType = getProfile().getInterfaceType();
+        // Beside interfaceType because it is the same kind of fact: what this
+        // interface is, not what its link is doing. From the profile here, as
+        // every adapter in this library owns its MAC that way; an interface
+        // that learns its address from the hardware instead answers for it
+        // here too, which is why this is not filled in the base class.
+        getProfile().getMac(s.mac);
         s.connected     = true;
         s.localIP       = WiFi.localIP();
         s.subnetMask    = WiFi.subnetMask();
