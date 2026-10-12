@@ -123,6 +123,16 @@ public:
                                     (unsigned)ip[0], (unsigned)ip[1],
                                     (unsigned)ip[2], (unsigned)ip[3]), len);
     }
+    static constexpr size_t MAC_STR_SIZE = 18;   // "AA:BB:CC:DD:EE:FF"
+
+    /// Colon-separated rendering, as the real profile provides it (0.4.0
+    /// statusToJson() reports the MAC).
+    static bool macToStr(char* buf, size_t len, const MACAddress mac) {
+        if (!buf || len < MAC_STR_SIZE) return false;
+        snprintf(buf, len, "%02X:%02X:%02X:%02X:%02X:%02X",
+                 mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+        return true;
+    }
     bool getMac(MACAddress mac, ConfigSource = ConfigSource::ACTIVE) const {
         for (uint8_t i = 0; i < MAC_LEN; i++) mac[i] = 0;
         return true;

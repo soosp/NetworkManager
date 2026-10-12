@@ -9,6 +9,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Fixed
+
+- The host test `test_glue.cpp` builds again: the `NetworkProfile` stub lacked
+  `macToStr()`, used by `statusToJson()` since 0.4.0
+
 ## [0.4.0] - 2026-10-07
 
 ### Added
