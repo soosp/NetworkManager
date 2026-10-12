@@ -447,11 +447,12 @@ Most platform-specific behaviour is handled internally; the API reference covers
 it in full under [Platform notes](API.md#platform-notes). A few points are worth
 knowing as a user:
 
-- **ESP32 with a W5500 and `ETH_PHY_IRQ` set** can, on rare boots, hit an SDK
-  stack-canary panic (`Stack canary watchpoint triggered (ipc1)`) while the core
-  installs the Ethernet interrupt — before any library code runs. Leaving
-  `ETH_PHY_IRQ` unset (polling mode) removes the cause; lowering the Core Debug
-  Level also helps in practice.
+- **ESP32 with a W5500 and an `ETH_PHY_IRQ` pin** has, rarely and not
+  reproducibly (so far only in the FallbackTestRunner), hit an SDK stack-canary
+  panic (`Stack canary watchpoint triggered (ipc1)`) while the core installs the
+  Ethernet interrupt. Polling mode avoids it: `ETH_PHY_IRQ` defined as `-1`
+  (not left undefined: the argument-less `ETH.begin()` then fails). Lowering
+  the Core Debug Level also helps in practice.
 - **An adapter whose `start()` fails** (an Ethernet chip that does not answer)
   is retried after 15 s, 30 s, 60 s ... up to 5 min, while the next adapter
   takes over at once.

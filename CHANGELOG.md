@@ -29,6 +29,12 @@ and this project adheres to
 
 - `test_start_retry.cpp`: host test for the failed-start retry
 
+### Changed
+
+- README and API: polling mode is `ETH_PHY_IRQ` defined as `-1`, not left
+  undefined (the argument-less `ETH.begin()` then fails); the IRQ-mode panic
+  is described as the rare, non-reproducible event it has been
+
 ## [0.4.0] - 2026-10-07
 
 ### Added
