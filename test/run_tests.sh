@@ -38,6 +38,7 @@ build_and_run() {
 rc=0
 build_and_run nm_harness.cpp nm_harness "Core regression suite" || rc=1
 build_and_run test_glue.cpp  test_glue  "real-glue smoke test"  || rc=1
+build_and_run test_start_retry.cpp test_start_retry "start() failure retry" || rc=1
 
 echo "------------------------------------------------------------"
 if [ "$rc" -eq 0 ]; then

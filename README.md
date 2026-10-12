@@ -282,6 +282,7 @@ Define macros **before** including any library header (or in `platformio.ini`
 |`NETWORK_MANAGER_DEFAULT_NTP_RETRY_INTERVAL`|`30000`|AVR only; base retry delay after a failed sync (server already resolved), ms; doubles per failure up to `_MAX`. No effect on ESP.|
 |`NETWORK_MANAGER_DEFAULT_NTP_RETRY_MAX`|`300000`|AVR only; cap for the retry backoff, ms.|
 |`NETWORK_ADAPTER_RETRY_INTERVAL`|`15000`|Probe retry interval, ms.|
+|`NETWORK_ADAPTER_START_RETRY_MAX`|`300000`|Cap for the growing wait after failed `start()` calls, ms.|
 
 The full list, including adapter-specific and PHY-selection macros, is in
 [API.md](API.md#compile-time-macros).
@@ -451,6 +452,9 @@ knowing as a user:
   installs the Ethernet interrupt — before any library code runs. Leaving
   `ETH_PHY_IRQ` unset (polling mode) removes the cause; lowering the Core Debug
   Level also helps in practice.
+- **An adapter whose `start()` fails** (an Ethernet chip that does not answer)
+  is retried after 15 s, 30 s, 60 s ... up to 5 min, while the next adapter
+  takes over at once.
 - **ESP32, DHCP Ethernet**: a harmless `esp_netif_handlers: invalid static ip`
   line may be logged once when the Ethernet link returns. It is cosmetic — the
   interface re-acquires its lease normally.

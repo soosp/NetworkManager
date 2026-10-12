@@ -46,7 +46,8 @@ details.
 |`NETWORK_MANAGER_DEFAULT_NTP_SYNC_INTERVAL`|`3600000`|Default SNTP poll interval, ms (1 h). Overridable at runtime with `setNtpSyncInterval()`.|
 |`NETWORK_MANAGER_DEFAULT_NTP_RETRY_INTERVAL`|`30000`|AVR only: base retry delay after a failed sync (server already resolved), ms; doubles per failure up to `_MAX`. No effect on ESP.|
 |`NETWORK_MANAGER_DEFAULT_NTP_RETRY_MAX`|`300000`|AVR only: cap for the retry backoff, ms.|
-|`NETWORK_ADAPTER_RETRY_INTERVAL`|`15000`|Minimum interval between probe attempts on a failed adapter, ms.|
+|`NETWORK_ADAPTER_RETRY_INTERVAL`|`15000`|Minimum interval between probe attempts on a failed adapter, ms. Also the first wait after a failed `start()`.|
+|`NETWORK_ADAPTER_START_RETRY_MAX`|`300000`|Cap for the wait after repeated failed `start()` calls, ms (the wait doubles per failure from `NETWORK_ADAPTER_RETRY_INTERVAL`).|
 |`NETWORK_MANAGER_NO_GLOBAL`|undefined|Suppresses the global `NetworkManager` reference. See [the note below](#the-networkmanager-name).|
 
 Adapter-specific macros (define before including the adapter header):
@@ -140,7 +141,10 @@ only.
 #### `bool begin()`
 
 Starts the manager: sorts adapters by priority and probes the highest-priority
-one. Returns `false` if no adapters were added.
+one. Returns `false` if no adapters were added, or if that adapter's `start()`
+failed (e.g. an Ethernet chip that does not answer). In the second case
+`update()` goes on with the other adapters at once and retries the failed one
+later (see [Failed start()](#failed-start)).
 
 #### `void end()`
 
@@ -446,6 +450,23 @@ manager's `update()`. See [applyProfile](#applying-a-profile-at-runtime).
 > `start()`, `stop()`, `update()` and `canProbe()` are the manager's
 > orchestration interface — do not call them from application code.
 
+#### Failed start()
+
+A `start()` that returns `false` is a fault of the hardware or of the
+configuration rather than of the network: an Ethernet chip that does not
+answer (missing module, loose connector, wrong CS or RST pin), a WiFi profile
+with no SSID. The manager records it; the adapter is not probed again until
+`RETRY_INTERVAL` has passed, doubled for every further failure up to
+`START_RETRY_MAX` (15 s, 30 s, 60 s ... 5 min by default), and a successful
+`start()` resets it. Meanwhile `update()` probes the next adapter, so a
+working fallback takes over at once and is not disturbed by the retries.
+
+This is separate from a connection that fails after a successful start (DHCP
+timeout, cable pulled, AP gone): that keeps the fixed `RETRY_INTERVAL`.
+
+A custom adapter that overrides `canProbe()` must keep the
+`_startRetryDue()` check, as the built-in ones do.
+
 ---
 
 ## Adapters
@@ -616,8 +637,12 @@ watchpoint triggered (ipc1)" panic. It happens inside the SDK, before any
 library code runs. Only the FIRST ETH.begin() takes this path (the ISR service
 is global and installed once), so it is a boot-time phenomenon — in a
 WiFi-primary setup, only on boots where WiFi is unavailable and Ethernet is
-therefore started. Lowering the Core Debug Level gives enough headroom in
-practice; leaving ETH_PHY_IRQ unset (polling mode) removes the cause entirely.
+therefore started. It has been seen only rarely, and not reproducibly, in the
+FallbackTestRunner; lowering the Core Debug Level gives enough headroom in
+practice. Polling mode removes the cause: define `ETH_PHY_IRQ` as `-1`. Do
+not leave it undefined — with the macro missing, the core's argument-less
+`ETH.begin()` (which `ESP32EthAdapter` calls) has no pin set to start from
+and returns `false`.
 
 ### ESP32: "invalid static ip" logged on Ethernet re-arm (harmless)
 

@@ -22,6 +22,10 @@
 #define NETWORK_ADAPTER_RETRY_INTERVAL 15000
 #endif
 
+#ifndef NETWORK_ADAPTER_START_RETRY_MAX
+#define NETWORK_ADAPTER_START_RETRY_MAX 300000
+#endif
+
 #ifndef ARDUINO_ARCH_AVR
 #  include <atomic>
 #endif
@@ -125,6 +129,12 @@ public:
     /** @brief Minimum interval between connection attempts after a failure. */
     static constexpr uint32_t RETRY_INTERVAL = NETWORK_ADAPTER_RETRY_INTERVAL;
 
+    /**
+     * @brief Longest wait between start() attempts after repeated start()
+     *        failures (see _retryStartInterval()).
+     */
+    static constexpr uint32_t START_RETRY_MAX = NETWORK_ADAPTER_START_RETRY_MAX;
+
     // -------------------------------------------------------------------------
     // State machine
     // -------------------------------------------------------------------------
@@ -201,7 +211,10 @@ public:
      * completes the process asynchronously via events or update().
      *
      * @return true if the start was initiated, false on failure
-     *         (e.g. hardware not available, profile invalid).
+     *         (e.g. hardware not available, profile invalid). The manager
+     *         records a false return: the adapter is not probed again until
+     *         _retryStartInterval() has passed, and the manager tries the
+     *         next adapter meanwhile.
      */
     virtual bool start() = 0;
 
@@ -217,17 +230,23 @@ public:
      *
      * Called by NetworkManager::update() to decide whether to attempt a
      * connection on this adapter. The default implementation returns true
-     * when the adapter is IDLE and the retry interval has elapsed since the
-     * last failure, preventing rapid reconnect loops on persistent failures.
+     * when the adapter is IDLE, the retry interval has elapsed since the
+     * last failure, and the start retry interval since the last failed
+     * start() (_startRetryDue()), preventing rapid reconnect loops on
+     * persistent failures.
      *
      * Subclasses may override this to add hardware-level checks (e.g.
      * Ethernet link state) so that a probe is skipped when the underlying
-     * hardware is clearly unavailable.
+     * hardware is clearly unavailable. An override must keep the
+     * _startRetryDue() check: without it an adapter whose start() keeps
+     * failing is probed on every update(), and the adapters after it never
+     * get a turn.
      *
      * @return true if start() is worth calling on this adapter now.
      */
     virtual bool canProbe() const {
         if (getState() != State::IDLE) return false;
+        if (!_startRetryDue()) return false;
 #ifndef ARDUINO_ARCH_AVR
         uint32_t last = _lastFailedMs.load();
         if (last == 0) return true;  // never failed — allow immediately
@@ -526,11 +545,74 @@ protected:
     uint32_t _lastFailedMs = 0;
 #endif
 
+    /**
+     * @brief Wait before the next start() after consecutive start() failures.
+     *
+     * RETRY_INTERVAL after the first failure, doubled for each further one,
+     * capped at START_RETRY_MAX (15 s, 30 s, 60 s, ... 5 min by default);
+     * 0 when the last start() succeeded. Separate from the fixed interval
+     * after a FAILED connection: a start() that fails is a hardware or
+     * configuration fault (an Ethernet chip that does not answer), and
+     * retrying it is not free — on ESP32 it re-initialises the SPI bus and
+     * the driver, and logs every time.
+     */
+    uint32_t _retryStartInterval() const {
+        const uint8_t n = _loadStartFailures();
+        if (n == 0) return 0;
+        uint32_t interval = RETRY_INTERVAL;
+        for (uint8_t i = 1; i < n && interval < START_RETRY_MAX; i++) interval *= 2;
+        return interval < START_RETRY_MAX ? interval : START_RETRY_MAX;
+    }
+
+    /// True unless a failed start() is still within _retryStartInterval().
+    bool _startRetryDue() const {
+        if (_loadStartFailures() == 0) return true;
+#ifndef ARDUINO_ARCH_AVR
+        const uint32_t since = millis() - _startFailedMs.load();
+#else
+        const uint32_t since = millis() - _startFailedMs;
+#endif
+        return since >= _retryStartInterval();
+    }
+
     // -------------------------------------------------------------------------
     // Deferred profile re-apply
     // -------------------------------------------------------------------------
 
 private:
+    /**
+     * @brief start(), with its outcome recorded for _retryStartInterval().
+     *
+     * The manager starts adapters only through this. A failure stamps the time
+     * and counts; a success clears the count. Loop task only (the counter is
+     * read from the event task too, hence atomic, but written here alone).
+     *
+     * @return What start() returned.
+     */
+    bool _tryStart() {
+        const bool started = start();
+        if (started) {
+            _storeStartFailures(0);
+        } else {
+#ifndef ARDUINO_ARCH_AVR
+            _startFailedMs.store(millis());
+#else
+            _startFailedMs = millis();
+#endif
+            const uint8_t n = _loadStartFailures();
+            if (n < 255) _storeStartFailures((uint8_t)(n + 1));
+        }
+        return started;
+    }
+
+#ifndef ARDUINO_ARCH_AVR
+    uint8_t _loadStartFailures() const { return _startFailures.load(); }
+    void    _storeStartFailures(uint8_t n) { _startFailures.store(n); }
+#else
+    uint8_t _loadStartFailures() const { return _startFailures; }
+    void    _storeStartFailures(uint8_t n) { _startFailures = n; }
+#endif
+
     /**
      * @brief Atomically reads and clears the pending apply flag.
      *
@@ -583,7 +665,7 @@ private:
     void _unlock() const {}
 #endif
 
-    friend class NetworkManagerClass; ///< Accesses _consumePendingApply() and _onStateChange.
+    friend class NetworkManagerClass; ///< Accesses _tryStart(), _consumePendingApply() and _onStateChange.
 
     // _state is written by _setState() on whichever task classified the change
     // (the SDK network-event task on ESP32) and read by getState() from the loop
@@ -600,7 +682,14 @@ private:
 
 #ifndef ARDUINO_ARCH_AVR
     std::atomic<bool> _pendingApply { false };
+    // Consecutive failed start() calls and the time of the last one. Plain
+    // loads and stores only (no read-modify-write), so no libatomic is needed
+    // on the xtensa-lx106.
+    std::atomic<uint8_t>  _startFailures { 0 };
+    std::atomic<uint32_t> _startFailedMs { 0 };
 #else
     bool _pendingApply = false;
+    uint8_t  _startFailures = 0;
+    uint32_t _startFailedMs = 0;
 #endif
 };

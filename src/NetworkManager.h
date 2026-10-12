@@ -489,7 +489,7 @@ public:
         // at all. Told afterwards, the offer has already been discarded.
         if (ok) _adapters[0]->setNtpFromDhcp(!_ntpConfiguredFor(0));
 #endif
-        if (ok) ok = _adapters[0]->start();
+        if (ok) ok = _adapters[0]->_tryStart();
         return ok;
     }
 
@@ -561,7 +561,7 @@ public:
         _unlock();
         if (!found) return false;
         adapter.stop();
-        return adapter.start();
+        return adapter._tryStart();
     }
 
     // -------------------------------------------------------------------------
@@ -725,7 +725,7 @@ public:
             _adapters[d.startIdx]->setNtpFromDhcp(
                 !_ntpConfiguredFor(d.startIdx));
 #endif
-            _adapters[d.startIdx]->start();
+            _adapters[d.startIdx]->_tryStart();
         }
         // The adapter passed to the callback is the interface that was last
         // serving before the outage (the primary adapter if none ever served).

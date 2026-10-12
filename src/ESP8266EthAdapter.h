@@ -313,6 +313,7 @@ public:
      */
     bool canProbe() const override {
         if (getState() != State::IDLE) return false;
+        if (!_startRetryDue()) return false;          // a failed start waits, growing
         if (!_chipStarted) return true;               // first start brings the driver up
         const uint32_t last = _lastFailedMs.load();
         if (last != 0 && millis() - last < RETRY_INTERVAL) return false;

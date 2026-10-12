@@ -222,6 +222,9 @@ public:
      */
     bool canProbe() const override {
         if (getState() != State::IDLE) return false;
+        // A failed ETH.begin() (chip not answering, wrong pins) is retried with
+        // a growing interval, and the other adapters get their turn meanwhile
+        if (!_startRetryDue()) return false;
         if (!_ethStarted) return true;  // first start: driver not yet running
         // After a stop() or FAILED, enforce the retry interval so the adapter
         // does not restart immediately (e.g. right after RESTORED stops it).

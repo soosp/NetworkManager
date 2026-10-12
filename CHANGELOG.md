@@ -11,8 +11,23 @@ and this project adheres to
 
 ### Fixed
 
+- An adapter whose `start()` fails no longer starves the others. A failed
+  `start()` (on ESP32, an `ETH.begin()` that fails because the Ethernet chip
+  does not answer: missing module, loose connector, wrong pins) left the
+  adapter IDLE and probeable at once, so `update()` restarted it on every call
+  and never reached the next adapter: a configured WiFi fallback never
+  started. The manager now starts adapters through `_tryStart()`, which
+  records the result; `canProbe()` (the base class and both Ethernet
+  adapters) waits `RETRY_INTERVAL` after a failed start, doubled per further
+  failure up to `NETWORK_ADAPTER_START_RETRY_MAX` (5 min), and the next
+  adapter is probed meanwhile. A connection that fails after a successful
+  start keeps the fixed interval
 - The host test `test_glue.cpp` builds again: the `NetworkProfile` stub lacked
   `macToStr()`, used by `statusToJson()` since 0.4.0
+
+### Added
+
+- `test_start_retry.cpp`: host test for the failed-start retry
 
 ## [0.4.0] - 2026-10-07
 

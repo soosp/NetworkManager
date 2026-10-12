@@ -4,6 +4,7 @@
 #   make            build and run both test suites
 #   make core       build + run only the Core regression suite
 #   make glue       build + run only the real-glue smoke test
+#   make retry      build + run only the start() failure retry test
 #   make clean      remove the built binaries
 #
 # Intended for Unix-like shells: Linux, macOS, WSL, Git-Bash or MSYS2 on
@@ -17,17 +18,21 @@ INCLUDES := -I. -I.. -I../src
 
 CORE := nm_harness
 GLUE := test_glue
+RETRY := test_start_retry
 
-.PHONY: all run core glue clean
+.PHONY: all run core glue retry clean
 all: run
 
 # Default: build + run everything.
-run: core glue
+run: core glue retry
 
 $(CORE): nm_harness.cpp
 	$(CXX) $(CXXFLAGS) $(INCLUDES) $< -o $@
 
 $(GLUE): test_glue.cpp
+	$(CXX) $(CXXFLAGS) $(INCLUDES) $< -o $@
+
+$(RETRY): test_start_retry.cpp
 	$(CXX) $(CXXFLAGS) $(INCLUDES) $< -o $@
 
 core: $(CORE)
@@ -40,5 +45,10 @@ glue: $(GLUE)
 	@echo "Real-glue smoke test:"
 	@./$(GLUE)
 
+retry: $(RETRY)
+	@echo "------------------------------------------------------------"
+	@echo "start() failure retry test:"
+	@./$(RETRY)
+
 clean:
-	@rm -f $(CORE) $(GLUE) $(CORE).exe $(GLUE).exe
+	@rm -f $(CORE) $(GLUE) $(RETRY) $(CORE).exe $(GLUE).exe $(RETRY).exe

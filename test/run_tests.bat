@@ -35,9 +35,18 @@ if errorlevel 1 set RC=1
 echo ------------------------------------------------------------
 echo Building real-glue smoke test ...
 g++ %FLAGS% test_glue.cpp -o test_glue.exe
-if errorlevel 1 ( echo BUILD FAILED: test_glue.cpp & set RC=1 & goto :done )
+if errorlevel 1 ( echo BUILD FAILED: test_glue.cpp & set RC=1 & goto :retry )
 echo Running real-glue smoke test:
 test_glue.exe
+if errorlevel 1 set RC=1
+
+:retry
+echo ------------------------------------------------------------
+echo Building start() failure retry test ...
+g++ %FLAGS% test_start_retry.cpp -o test_start_retry.exe
+if errorlevel 1 ( echo BUILD FAILED: test_start_retry.cpp & set RC=1 & goto :done )
+echo Running start() failure retry test:
+test_start_retry.exe
 if errorlevel 1 set RC=1
 
 :done
