@@ -9,6 +9,11 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- Add results of Waveshare ESP32-P4-WIFI6-POE-ETH tests conducted by
+ `FallbackTestRunner.ino` sketch.
+
 ## [0.5.1] - 2026-10-28
 
 ### Fixed
