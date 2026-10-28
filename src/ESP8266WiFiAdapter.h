@@ -14,6 +14,9 @@
 #include "WiFiProfile.h"
 #include <ESP8266WiFi.h>
 #include <lwip/netif.h>   // netif_set_default() — re-point the default route
+extern "C" {
+#include <user_interface.h>   // wifi_set_macaddr(): the core has no setter
+}
 
 #ifndef ESP8266_WIFI_ADAPTER_DHCP_TIMEOUT
 #define ESP8266_WIFI_ADAPTER_DHCP_TIMEOUT 15000
@@ -84,10 +87,17 @@ public:
         // our state machine (mirrors the ESP32 adapter's approach).
         WiFi.setAutoReconnect(false);
 
-        // mode(WIFI_STA) first, so the two calls below act on an existing
+        // mode(WIFI_STA) first, so the calls below act on an existing
         // station netif rather than on nothing. TX power is the one that has to
         // wait for begin() — see there.
         WiFi.mode(WIFI_STA);
+
+        // The station address, brought to the profile's before anything is
+        // sent, and written only when it differs: the radio is left alone
+        // unless an override is set (or was just removed). Refusing to start
+        // on failure keeps the status from naming an address the radio does
+        // not use.
+        if (!_syncMac()) return false;
 
         // Hostname before the DHCP request, so the lease carries it.
         //
@@ -281,15 +291,31 @@ private:
         }
     }
 
+    /**
+     * @brief Brings the station MAC to the profile's.
+     *
+     * The SDK keeps the station address and gives it to the netif when the
+     * station connects, so setting it between mode() and begin() covers both.
+     *
+     * @return true if the station now uses the profile's address.
+     */
+    bool _syncMac() {
+        uint8_t want[NetworkProfile::MAC_LEN];
+        uint8_t have[NetworkProfile::MAC_LEN];
+        if (!_wifiProfile.getMac(want)) return false;
+        WiFi.macAddress(have);
+        if (memcmp(have, want, sizeof(have)) == 0) return true;
+        return wifi_set_macaddr(STATION_IF, want);
+    }
+
     /** @brief Builds a live status snapshot from the WiFi interface. */
     NetworkStatus _buildStatus() const {
         NetworkStatus s;
         s.interfaceType = getProfile().getInterfaceType();
         // Beside interfaceType because it is the same kind of fact: what this
         // interface is, not what its link is doing. From the profile here, as
-        // every adapter in this library owns its MAC that way; an interface
-        // that learns its address from the hardware instead answers for it
-        // here too, which is why this is not filled in the base class.
+        // every adapter in this library owns its MAC that way — start() made
+        // the radio's address match it, so the two cannot disagree.
         getProfile().getMac(s.mac);
         s.connected     = true;
         s.localIP       = WiFi.localIP();

@@ -64,6 +64,19 @@
  * after CONNECTING, the adapter transitions to FAILED. Override the macro
  * in platformio.ini or before including this header (default: 15000 ms).
  *
+ * ## MAC address
+ *
+ * start() brings the controller's address to the profile's (getMac(ACTIVE)),
+ * writing it only when the two differ. That is not only for an override. The
+ * core gives the two kinds of controller different addresses when left to
+ * itself: the internal EMAC uses ESP_MAC_ETH as it stands, while an SPI
+ * controller (W5500 and the like, the only kind on chips without an EMAC)
+ * gets a locally administered address derived from it. The profile's factory
+ * address is ESP_MAC_ETH either way, so on an EMAC this writes nothing and on
+ * an SPI controller it replaces the derived one — and the status always
+ * reports what is on the wire, without the adapter having to know which kind
+ * of controller the build selected.
+ *
  * @note Only one ESP32EthAdapter instance may be active at a time.
  *       start() returns false if another instance is already active.
  */
@@ -93,11 +106,13 @@ public:
      * Subsequent calls skip ETH.begin() to avoid SPI re-initialisation
      * errors — the driver continues running across logical stop/start cycles.
      *
-     * Configures DHCP or static IP according to the profile, sets the
-     * routing priority, and transitions to CONNECTING.
+     * Brings the controller's MAC to the profile's (see the class
+     * description), configures DHCP or static IP according to the profile,
+     * sets the routing priority, and transitions to CONNECTING.
      *
      * @return true if started successfully, false if another instance is
-     *         already active or ETH.begin() fails on first call.
+     *         already active, ETH.begin() fails on first call, or the MAC
+     *         could not be applied.
      */
     bool start() override {
         if (_activeCount > 0) return false;
@@ -130,7 +145,16 @@ public:
                 return false;
             }
             _ethStarted = true;
+            // Straight after begin(): the link takes a second or more to
+            // negotiate, and nothing is sent before it is up. On failure the
+            // driver stays running (it cannot be begun twice), so stop() is the
+            // undo — it also stops the DHCP client the netif would otherwise
+            // start on its own when the link comes up, with the wrong address.
+            if (!_syncMac()) { stop(); return false; }
         } else {
+            // Before the DHCP client is started again below.
+            if (!_syncMac()) { stop(); return false; }
+
             // On subsequent starts, the driver is already running but the DHCP
             // client was stopped in stop(). If the physical link is already up,
             // ETH_CONNECTED will not fire again (the link state has not changed),
@@ -264,6 +288,38 @@ private:
     static bool                          _eventRegistered; ///< true if Network.onEvent() was called.
     static bool                          _ethStarted;   ///< true if ETH.begin() succeeded at least once.
 
+    /**
+     * @brief Brings the controller's MAC to the profile's.
+     *
+     * Writes the driver and the netif — the netif took its own copy when the
+     * interface started, and lwIP answers ARP and fills the DHCP request from
+     * that copy — then reads the driver back, so a controller that ignored
+     * the write is caught here rather than on the network.
+     *
+     * @return true if the controller now uses the profile's address.
+     */
+    bool _syncMac() {
+        esp_eth_handle_t h = ETH.handle();
+        uint8_t want[NetworkProfile::MAC_LEN];
+        uint8_t have[NetworkProfile::MAC_LEN];
+        if (!h || !_ethProfile.getMac(want)) return false;
+        if (esp_eth_ioctl(h, ETH_CMD_G_MAC_ADDR, have) != ESP_OK) return false;
+        if (memcmp(have, want, sizeof(have)) == 0) return true;
+
+        esp_err_t err = esp_eth_ioctl(h, ETH_CMD_S_MAC_ADDR, want);
+        if (err == ESP_OK) {
+            esp_netif_t* netif = ETH.netif();
+            if (netif) err = esp_netif_set_mac(netif, want);
+        }
+        if (err == ESP_OK) err = esp_eth_ioctl(h, ETH_CMD_G_MAC_ADDR, have);
+        if (err != ESP_OK || memcmp(have, want, sizeof(have)) != 0) {
+            log_e("Ethernet MAC not applied: %s",
+                  err != ESP_OK ? esp_err_to_name(err) : "read back differs");
+            return false;
+        }
+        return true;
+    }
+
     // -------------------------------------------------------------------------
     // Routing priority helpers
     // -------------------------------------------------------------------------
@@ -307,9 +363,8 @@ private:
         s.interfaceType = getProfile().getInterfaceType();
         // Beside interfaceType because it is the same kind of fact: what this
         // interface is, not what its link is doing. From the profile here, as
-        // every adapter in this library owns its MAC that way; an interface
-        // that learns its address from the hardware instead answers for it
-        // here too, which is why this is not filled in the base class.
+        // every adapter in this library owns its MAC that way — start() made
+        // the controller's address match it, so the two cannot disagree.
         getProfile().getMac(s.mac);
         s.connected     = true;
         s.localIP       = ETH.localIP();

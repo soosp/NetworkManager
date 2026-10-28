@@ -14,6 +14,8 @@
 #include "WiFiProfile.h"
 #include <WiFi.h>
 #include <Network.h>
+#include <esp_wifi.h>     // esp_wifi_get_mac()/esp_wifi_set_mac() — remote on ESP32-P4
+#include <esp_netif.h>
 #include <atomic>
 #include <cmath>
 
@@ -42,6 +44,14 @@
  *   1.5-2 s. The default leaves ample room; a build that shortens the timeout
  *   should keep that in mind.
  *
+ * MAC address:
+ *   start() brings the station's address to the profile's
+ *   (getMac(ACTIVE)), writing it only when the two differ — so the radio is
+ *   left alone unless an override is set, and what the status reports is what
+ *   goes on the air. On an ESP32-P4 the radio is an ESP-Hosted co-processor and
+ *   the profile cannot know its address beforehand; start() reads it from the
+ *   driver and records it as the factory MAC (WiFiProfile::setFactoryMac()).
+ *
  * @note Only one ESP32WiFiAdapter instance may be active at a time,
  *       as the ESP32 supports a single STA interface. start() returns
  *       false if another instance is already active.
@@ -68,12 +78,14 @@ public:
     /**
      * @brief Starts the WiFi connection in STA mode.
      *
-     * Reads SSID, password, hostname and TX power from the profile.
+     * Reads SSID, password, hostname and TX power from the profile, and
+     * brings the station MAC to the profile's (see the class description).
      * Registers the internal event handler if not already registered.
      * Transitions to CONNECTING.
      *
      * @return true if SSID is non-empty and WiFi.begin() was called,
-     *         false if the profile has no SSID or another instance is active.
+     *         false if the profile has no SSID, another instance is active, or
+     *         the MAC could not be read or applied.
      */
     bool start() override {
         if (_activeCount > 0) return false;
@@ -112,6 +124,13 @@ public:
         // over reliably can afford that far more easily than it can afford
         // associating with the wrong access point.
         WiFi.setScanMethod(WIFI_ALL_CHANNEL_SCAN);
+
+        // After mode(), which starts the driver (and on a P4 the co-processor
+        // link), and before begin(), so the association and the DHCP request
+        // already carry the address. Refusing to start is the honest outcome
+        // of a failure: the alternative is a status that names one address
+        // while the radio sends from another.
+        if (!_syncMac()) return false;
 
         char password[WiFiProfile::MAX_PASSWORD_SIZE];
         _wifiProfile.getPassword(password, sizeof(password));
@@ -212,6 +231,48 @@ public:
 private:
     WiFiProfile& _wifiProfile;     ///< Typed reference to the WiFi profile.
     uint32_t     _connectingStart; ///< millis() timestamp when CONNECTING began.
+    /**
+     * @brief Brings the station MAC to the profile's.
+     *
+     * Reads the driver's address first. Where the profile could not know the
+     * factory address — WiFi on an ESP32-P4, owned by the co-processor — this
+     * is the moment it becomes known, and it is recorded as such. Then, only
+     * if the profile's effective address differs (an override, or an override
+     * just removed), writes it to the driver and to the netif: the netif took
+     * its copy of the address when the station started, and lwIP answers ARP
+     * and fills the DHCP request from that copy, not from the driver.
+     *
+     * esp_wifi_set_mac() is documented for a disabled interface; between
+     * mode() and begin() the station is started but not associated. If the
+     * driver refuses it there, start() fails and says so in the log.
+     *
+     * @return true if the station now uses the profile's address.
+     */
+    bool _syncMac() {
+        uint8_t have[NetworkProfile::MAC_LEN];
+        esp_err_t err = esp_wifi_get_mac(WIFI_IF_STA, have);
+        if (err != ESP_OK) {
+            log_e("station MAC unreadable: %s", esp_err_to_name(err));
+            return false;
+        }
+        if (!_wifiProfile.hasFactoryMac()) _wifiProfile.setFactoryMac(have);
+
+        uint8_t want[NetworkProfile::MAC_LEN];
+        if (!_wifiProfile.getMac(want)) return false;
+        if (memcmp(have, want, sizeof(have)) == 0) return true;
+
+        err = esp_wifi_set_mac(WIFI_IF_STA, want);
+        if (err == ESP_OK) {
+            esp_netif_t* netif = WiFi.STA.netif();
+            if (netif) err = esp_netif_set_mac(netif, want);
+        }
+        if (err != ESP_OK) {
+            log_e("station MAC not applied: %s", esp_err_to_name(err));
+            return false;
+        }
+        return true;
+    }
+
     /** @brief Applies the profile's TX power to the radio (no-op when NaN). */
     void _applyTxPower() {
         const float dBm = _wifiProfile.getTxPower();
@@ -233,9 +294,8 @@ private:
         s.interfaceType = getProfile().getInterfaceType();
         // Beside interfaceType because it is the same kind of fact: what this
         // interface is, not what its link is doing. From the profile here, as
-        // every adapter in this library owns its MAC that way; an interface
-        // that learns its address from the hardware instead answers for it
-        // here too, which is why this is not filled in the base class.
+        // every adapter in this library owns its MAC that way — start() made
+        // the radio's address match it, so the two cannot disagree.
         getProfile().getMac(s.mac);
         s.connected     = true;
         s.localIP       = WiFi.localIP();

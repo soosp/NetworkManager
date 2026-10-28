@@ -9,6 +9,29 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Fixed
+
+- A MAC override in the profile reached the status but never the hardware: the
+  ESP32 and ESP8266 WiFi adapters and the ESP32 Ethernet adapter did not apply
+  it, so the status named an address the interface did not send from.
+  `start()` now brings the interface to the profile's effective address,
+  writing only when the two differ — nothing is written without an override
+- The ESP32 Ethernet adapter reported a different address from the one on the
+  wire for an SPI controller (W5500 and the like) even without an override:
+  the core gives those a locally administered address derived from
+  `ESP_MAC_ETH`, while the profile reports `ESP_MAC_ETH`. `start()` now writes
+  the profile's address to the controller and reads it back; an EMAC, which
+  already uses `ESP_MAC_ETH`, is left as it is
+- ESP32-P4: the WiFi adapter reads the station address from the ESP-Hosted
+  co-processor on its first `start()` and records it as the profile's factory
+  MAC (NetworkProfile `setFactoryMac()`). Before, the status had no MAC
+
+### Changed
+
+- `start()` returns `false` if the MAC cannot be read or applied, rather than
+  carrying on with an address the status does not show
+- Requires NetworkProfile 0.11.0 with `hasFactoryMac()` / `setFactoryMac()`
+
 ## [0.4.1] - 2026-10-12
 
 ### Fixed

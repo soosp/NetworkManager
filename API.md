@@ -438,7 +438,9 @@ The associated profile.
 Hostname / MAC of this interface (delegates to its profile). `ACTIVE` returns the
 effective value (override if set, else the generated default); `FACTORY` the
 generated default. Available before the interface connects — configuration, not
-runtime state.
+runtime state — with one exception: the WiFi MAC of an ESP32-P4, which belongs to
+its ESP-Hosted co-processor, is known only after the adapter's first `start()`.
+Until then `getMac()` returns `false` and zeros.
 
 ### Re-apply profiles
 
@@ -486,6 +488,24 @@ ESP32WiFiAdapter wifiAdapter(wifiProfile);
 |`ESP8266WiFiAdapter`|`ESP8266WiFiAdapter.h`|ESP8266 WiFi STA|
 |`ESP8266EthAdapter`|`ESP8266EthAdapter.h`|ESP8266 wired lwIP (W5500 / W5100 / ENC28J60)|
 |`AVREthernetAdapter`|`AVREthernetAdapter.h`|AVR Ethernet (W5100 / W5500)|
+
+### MAC address
+
+Every adapter's `start()` makes the interface use the profile's effective address
+(`getMac(ACTIVE)`) before anything is sent, so the address in the status is the
+one on the wire. Where the hardware already uses it, nothing is written: without
+an override the radio and the EMAC are left alone.
+
+|Adapter|What `start()` does|
+|---|---|
+|ESP32 WiFi|reads the station MAC; writes driver and netif only if it differs. On an ESP32-P4 the first read is recorded as the factory MAC (`setFactoryMac()`)|
+|ESP8266 WiFi|reads the station MAC; writes it (`wifi_set_macaddr()`) only if it differs|
+|ESP32 Ethernet|reads the controller's MAC; writes driver and netif only if it differs, then reads it back. An EMAC already uses `ESP_MAC_ETH`; an SPI controller gets that address in place of the locally administered one the core derives|
+|ESP8266 / AVR Ethernet|passes the address to `begin()`, as the controller has none of its own|
+
+If the address cannot be read or applied, `start()` returns `false` — the
+manager's usual retry — and on ESP32 the reason is logged. A status naming one
+address while the interface sends from another is the outcome this avoids.
 
 ### WiFi adapters — TX power & RSSI
 
