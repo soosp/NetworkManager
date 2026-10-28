@@ -9,6 +9,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-10-28
+
 ### Fixed
 
 - Bump NetworkProfile dependency to 0.11.2
@@ -761,7 +763,8 @@ First public release.
   `EthWiFiFallback` (ESP).
 - API reference (`API.md`) and testing notes (`Testing.md`).
 
-[Unreleased]: https://github.com/soosp/NetworkManager/compare/0.5.0...HEAD
+[Unreleased]: https://github.com/soosp/NetworkManager/compare/0.5.1...HEAD
+[0.5.1]: https://github.com/soosp/NetworkManager/compare/0.5.0...0.5.1
 [0.5.0]: https://github.com/soosp/NetworkManager/compare/0.4.1...0.5.0
 [0.4.1]: https://github.com/soosp/NetworkManager/compare/0.4.0...0.4.1
 [0.4.0]: https://github.com/soosp/NetworkManager/compare/0.3.0...0.4.0
