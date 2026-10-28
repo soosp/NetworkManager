@@ -477,8 +477,8 @@ The fallback/restore behaviour is validated on real hardware with a
 semi-automatic 32-case test runner (`examples/FallbackTestRunner`), and the
 decision core has a host-side regression suite (`test/nm_harness.cpp`). See the
 [test/README.md](test/README.md) for details. Results across ESP32 (W5500 and
-LAN8720A), ESP8266 and the test method are documented in
-[Testing.md](Testing.md).
+LAN8720A), ESP32-P4 with ESP32-C6 WiFi Co-processor, ESP8266 and the test method
+are documented in [Testing.md](Testing.md).
 
 ## License
 

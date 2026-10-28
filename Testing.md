@@ -45,6 +45,7 @@ reset button).
 |--|--|--|--|
 |ESP32|Waveshare ESP32-S3-POE-ETH|Wiznet W5500 (integrated, SPI)|built in|
 |ESP32|Olimex ESP32-POE|Microchip LAN8720A (integrated, RMII)|built in|
+|ESP32|Waveshare ESP32-P4-WIFI6-POE-ETH|IC PLUS IP101G (integrated, RMII)|ESP32-C6-MINI-1U-H8 Co-processor (integrated, SDIO, ESP-Hosted)|
 |ESP8266|NodeMCU|Wiznet W5500 (external, SPI)|built in|
 
 #### Waveshare ESP32-S3-POE-ETH settings
@@ -176,6 +177,52 @@ case  prio  addr    scenario                     events  ntp   sw(s) ntp(s)
   29  WiFi  static  6  S > disc > P > S > P      PASS    PASS   61.7    2.5
   30  WiFi  static  7  disc > S > P > S > P      PASS    PASS   60.0    4.4
   31  WiFi  static  8  disc > P > S > P          PASS    PASS   60.0    4.5
+
+  32/32 cases fully passed
+  (prio = primary interface; sw = worst ENTER->event, approximate;
+   ntp = worst event->sync.)
+  Type a case number + ENTER to re-run just that case;
+  'r' resets and runs the whole matrix again.
+===========================================================================
+```
+
+#### Waveshare ESP32-P4-WIFI6-POE-ETH
+
+```txt
+================================= SUMMARY =================================
+case  prio  addr    scenario                     events  ntp   sw(s) ntp(s)
+   0  ETH   dhcp    1  P > S > P > S > P         PASS    PASS    8.0    4.0
+   1  ETH   dhcp    2  P > S > disc > S > P      PASS    PASS   60.7    4.6
+   2  ETH   dhcp    3  P > S > disc > P > S > P  PASS    PASS   61.1    3.0
+   3  ETH   dhcp    4  S > P > S > P             PASS    PASS   17.5    3.5
+   4  ETH   dhcp    5  S > disc > S > P > S > P  PASS    PASS   60.9    4.4
+   5  ETH   dhcp    6  S > disc > P > S > P      PASS    PASS   60.8    3.0
+   6  ETH   dhcp    7  disc > S > P > S > P      PASS    PASS   60.0    4.0
+   7  ETH   dhcp    8  disc > P > S > P          PASS    PASS   60.0    3.0
+   8  ETH   static  1  P > S > P > S > P         PASS    PASS    7.3    4.0
+   9  ETH   static  2  P > S > disc > S > P      PASS    PASS   60.8    2.8
+  10  ETH   static  3  P > S > disc > P > S > P  PASS    PASS   60.7    4.7
+  11  ETH   static  4  S > P > S > P             PASS    PASS   16.0    3.9
+  12  ETH   static  5  S > disc > S > P > S > P  PASS    PASS   61.0    2.4
+  13  ETH   static  6  S > disc > P > S > P      PASS    PASS   60.7    4.2
+  14  ETH   static  7  disc > S > P > S > P      PASS    PASS   60.0    3.9
+  15  ETH   static  8  disc > P > S > P          PASS    PASS   60.0    4.8
+  16  WiFi  dhcp    1  P > S > P > S > P         PASS    PASS   12.1    0.7
+  17  WiFi  dhcp    2  P > S > disc > S > P      PASS    PASS   60.7   30.3
+  18  WiFi  dhcp    3  P > S > disc > P > S > P  PASS    PASS   61.5    3.2
+  19  WiFi  dhcp    4  S > P > S > P             PASS    PASS   12.7    2.0
+  20  WiFi  dhcp    5  S > disc > S > P > S > P  PASS    PASS   63.5    4.6
+  21  WiFi  dhcp    6  S > disc > P > S > P      PASS    PASS   60.8    2.9
+  22  WiFi  dhcp    7  disc > S > P > S > P      PASS    PASS   60.0    4.6
+  23  WiFi  dhcp    8  disc > P > S > P          PASS    PASS   60.0    4.9
+  24  WiFi  static  1  P > S > P > S > P         PASS    PASS   11.0    3.2
+  25  WiFi  static  2  P > S > disc > S > P      PASS    PASS   60.5    4.5
+  26  WiFi  static  3  P > S > disc > P > S > P  PASS    PASS   65.0    4.2
+  27  WiFi  static  4  S > P > S > P             PASS    PASS   13.7    3.2
+  28  WiFi  static  5  S > disc > S > P > S > P  PASS    PASS   61.9    4.9
+  29  WiFi  static  6  S > disc > P > S > P      PASS    PASS   63.4    4.2
+  30  WiFi  static  7  disc > S > P > S > P      PASS    PASS   60.0    3.5
+  31  WiFi  static  8  disc > P > S > P          PASS    PASS   60.0    4.4
 
   32/32 cases fully passed
   (prio = primary interface; sw = worst ENTER->event, approximate;
