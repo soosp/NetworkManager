@@ -227,7 +227,9 @@ number of characters written (excluding NUL), or `0` on error/overflow (in which
 case `out` is set empty).
 
 Always contains `interface`, `connected`, `ip`, `mask`, `gw`, and a `dns` array
-(populated slots only). With `includeNtp`, an `ntp` object is appended holding
+(populated slots only). `interface` is `"eth"` or `"wifi"` for the active
+adapter, and `"unknown"` while none is active (before the first connection, or
+with every interface down). With `includeNtp`, an `ntp` object is appended holding
 the overall `synced` flag and a `servers` array of the live SNTP servers (name +
 resolved/numeric ip). A DHCP-provided server shows an empty name.
 
@@ -370,7 +372,7 @@ included** (read it via the NTP accessors instead).
 
 ```cpp
 struct NetworkStatus {
-    NetworkProfile::InterfaceType interfaceType;   // ETH / WIFI
+    NetworkProfile::InterfaceType interfaceType;   // ETH / WIFI; UNKNOWN when no adapter is active
     bool      connected;                           // true while an IP is held
     IPAddress localIP;                             // 0.0.0.0 if not connected
     IPAddress subnetMask;

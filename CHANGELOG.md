@@ -14,6 +14,15 @@ and this project adheres to
 - Add results of Waveshare ESP32-P4-WIFI6-POE-ETH tests conducted by
  `FallbackTestRunner.ino` sketch.
 
+### Fixed
+
+- `getStatus()` with no active adapter reported `interfaceType` `ETH`, and
+  `statusToJson()` `"interface":"eth"` — on a Wi-Fi-only device too, until its
+  first connection. It is `UNKNOWN` / `"unknown"` now. Every
+  adapter's own snapshot is unchanged: it carries its profile's type. Code that
+  read the manager's snapshot while nothing was active got `ETH` there, and now
+  gets `UNKNOWN`
+
 ## [0.5.1] - 2026-10-28
 
 ### Fixed

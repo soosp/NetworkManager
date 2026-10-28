@@ -70,8 +70,11 @@ struct LinkInfo {
  * false and every address is INADDR_ANY (0.0.0.0).
  */
 struct NetworkStatus {
+    /// Which interface this describes. UNKNOWN only in the snapshot the manager
+    /// returns when no adapter is active; every adapter's own snapshot carries
+    /// its profile's type, connected or not.
     NetworkProfile::InterfaceType interfaceType =
-        NetworkProfile::InterfaceType::ETH;            ///< Which interface this describes.
+        NetworkProfile::InterfaceType::UNKNOWN;
     bool      connected = false;                       ///< True while a valid IP is held.
     IPAddress localIP;                                 ///< Assigned address (0.0.0.0 if down).
     IPAddress subnetMask;                              ///< Subnet mask.
