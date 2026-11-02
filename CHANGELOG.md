@@ -9,6 +9,19 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Fixed
+
+- ESP8266: the radio no longer modem-sleeps while connected. With modem sleep
+  — the core's default — frames for the device wait at the access point for
+  the next DTIM beacon, and with some APs that leaves a device associated and
+  all but unreachable: here, DHCP answers missing the 15 s window (the link
+  dropped every 11 s after association), pages taking a minute and arriving
+  cut off, NTP taking 80 s, and the broker dropping the MQTT session for
+  silence every two minutes — on NodeMCUs at -45 to -61 dBm that had run for
+  weeks on the same AP. The adapter now sets `WIFI_NONE_SLEEP` at every
+  `start()`, at about 70 mA more. `ESP8266_WIFI_ADAPTER_SLEEP` chooses another
+  mode, for a battery-powered device
+
 ## [0.5.2] - 2026-10-29
 
 ### Added

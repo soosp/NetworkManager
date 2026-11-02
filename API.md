@@ -56,6 +56,7 @@ Adapter-specific macros (define before including the adapter header):
 |--|--:|--|
 |`ESP32_WIFI_ADAPTER_DHCP_TIMEOUT`|`15000`|ESP32 WiFi|
 |`ESP8266_WIFI_ADAPTER_DHCP_TIMEOUT`|`15000`|ESP8266 WiFi|
+|`ESP8266_WIFI_ADAPTER_SLEEP`|`WIFI_NONE_SLEEP`|ESP8266 WiFi: radio sleep while connected; `WIFI_MODEM_SLEEP` or `WIFI_LIGHT_SLEEP` for a battery-powered device|
 |`ESP8266_ETH_ADAPTER_DHCP_TIMEOUT`|`15000`|ESP8266 Ethernet|
 |`ESP8266_ETH_ADAPTER_SPI_FREQUENCY`|`4000000`|ESP8266 Ethernet|
 |`AVR_ETH_ADAPTER_DHCP_TIMEOUT`|`15000`|AVR Ethernet|

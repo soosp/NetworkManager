@@ -23,6 +23,31 @@ extern "C" {
 #endif
 
 /**
+ * The radio's sleep mode while connected: WIFI_NONE_SLEEP (the default),
+ * WIFI_MODEM_SLEEP (the core's own default) or WIFI_LIGHT_SLEEP.
+ *
+ * Not the core's default, because modem sleep makes reachability the access
+ * point's business: the radio is off between beacons, and frames for the device
+ * wait at the AP for the next DTIM. With some APs that works; with others the
+ * device associates, holds its address and is all but unreachable. Measured on
+ * NodeMCUs a metre and a half from the AP, at -45 to -61 dBm: DHCP answers that
+ * missed the 15 s window, so the adapter dropped the link every 11 s after
+ * association; a page that took a minute to arrive, and /common.js cut off
+ * after 899 bytes; NTP taking 80 s; an MQTT session the broker dropped every
+ * two minutes for silence. The same firmware had run for weeks on the same AP,
+ * and a newer module on the same board was unaffected. With sleep off,
+ * everything came back at once.
+ *
+ * A device that answers requests — a web page, an MQTT subscription — wants the
+ * radio listening. The cost is about 70 mA more, which a mains-powered device
+ * does not notice; a battery-powered one sets WIFI_MODEM_SLEEP or
+ * WIFI_LIGHT_SLEEP and accepts what its AP does with it.
+ */
+#ifndef ESP8266_WIFI_ADAPTER_SLEEP
+#define ESP8266_WIFI_ADAPTER_SLEEP WIFI_NONE_SLEEP
+#endif
+
+/**
  * @brief NetworkAdapter implementation for ESP8266 WiFi (STA mode).
  *
  * Event-driven — uses WiFi.onStationModeGotIP() and related callbacks
@@ -91,6 +116,9 @@ public:
         // station netif rather than on nothing. TX power is the one that has to
         // wait for begin() — see there.
         WiFi.mode(WIFI_STA);
+        // Before begin(), so the association already runs with it, and on every
+        // start(): the core applies it to the running radio only.
+        WiFi.setSleepMode(ESP8266_WIFI_ADAPTER_SLEEP);
 
         // The station address, brought to the profile's before anything is
         // sent, and written only when it differs: the radio is left alone
