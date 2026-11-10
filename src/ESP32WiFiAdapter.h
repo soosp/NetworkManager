@@ -368,6 +368,7 @@ private:
             }
             case ARDUINO_EVENT_WIFI_STA_LOST_IP: {
                 if (inst->getState() == State::CONNECTED) {
+                    inst->_noteDrop(DropKind::ADDRESS);
                     inst->_clearStatus();
                     inst->_setState(State::FAILED);
                 }
@@ -376,6 +377,8 @@ private:
             case ARDUINO_EVENT_WIFI_STA_DISCONNECTED: {
                 if (inst->getState() == State::CONNECTED ||
                     inst->getState() == State::CONNECTING) {
+                    inst->_noteDrop(DropKind::LINK,
+                                    (uint16_t)info.wifi_sta_disconnected.reason);
                     inst->_clearStatus();
                     inst->_setState(State::FAILED);
                 }

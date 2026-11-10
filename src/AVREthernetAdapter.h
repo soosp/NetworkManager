@@ -187,12 +187,14 @@ public:
                 // DHCP renewal
                 const uint8_t m = Ethernet.maintain();
                 if (m == DHCP_CHECK_RENEW_FAIL || m == DHCP_CHECK_REBIND_FAIL) {
+                    _noteDrop(DropKind::ADDRESS);
                     _clearStatus();
                     _setState(State::FAILED);
                     break;
                 }
                 // Check link
                 if (Ethernet.linkStatus() == LinkOFF) {
+                    _noteDrop(DropKind::LINK);   // never on a W5100: no link detection
                     _clearStatus();
                     _setState(State::FAILED);
                     break;

@@ -325,6 +325,81 @@ public:
      */
     virtual bool getLinkInfo(LinkInfo& out) const { (void)out; return false; }
 
+    // -------------------------------------------------------------------------
+    // Link health — diagnostics only
+    // -------------------------------------------------------------------------
+
+    /**
+     * @brief The layer a working connection was lost at.
+     *
+     * The same two for every interface type, so a Wi-Fi and an Ethernet count
+     * mean the same thing: LINK is the medium (Wi-Fi association, Ethernet
+     * carrier), ADDRESS is the IP address going while the medium stays up (a
+     * lease not renewed). A link that goes takes its address with it; that is
+     * one LINK drop, not one of each.
+     */
+    enum class DropKind : uint8_t {
+        LINK,     ///< the medium went
+        ADDRESS,  ///< the address went, the medium stayed
+    };
+
+    // The four getters below are diagnostics only. They record what the adapter
+    // saw happen underneath the manager's events; nothing in NetworkManager
+    // reads them, and no decision — fallback, restore, the reconnect timeout,
+    // which event fires — depends on them. So they count what the events never
+    // show: a link that drops and returns within the reconnect timeout is
+    // counted here while the application sees no DISCONNECTED at all.
+    //
+    // Only a working connection (CONNECTED) can be lost: a failed attempt is
+    // not a drop. Counted since boot, per adapter, not persisted. Each getter
+    // is a single atomic load, so the four read one by one can straddle a
+    // drop; linkHealth() returns them from one moment.
+
+    /** @brief The four link-health values together; see linkHealth(). */
+    struct LinkHealth {
+        uint32_t linkDrops      = 0;  ///< see linkDrops()
+        uint32_t addressDrops   = 0;  ///< see addressDrops()
+        uint32_t lastDropMs     = 0;  ///< see lastDropMs()
+        uint16_t lastDropReason = 0;  ///< see lastDropReason()
+    };
+
+    /**
+     * @brief All four link-health values from one moment.
+     *
+     * Read under the adapter lock that _noteDrop() writes under, so a count
+     * always comes with its own reason and time — what a payload carrying
+     * more than one of them wants. All zero if the lock cannot be taken
+     * within MUTEX_TIMEOUT.
+     */
+    LinkHealth linkHealth() const {
+        LinkHealth h;
+        if (!_lock()) return h;
+        h.linkDrops      = _ld(_linkDrops);
+        h.addressDrops   = _ld(_addressDrops);
+        h.lastDropMs     = _ld(_lastDropMs);
+        h.lastDropReason = _ld(_lastDropReason);
+        _unlock();
+        return h;
+    }
+
+    /** @brief Working connections lost at the medium since boot. */
+    uint32_t linkDrops() const { return _ld(_linkDrops); }
+
+    /** @brief Addresses lost with the medium still up, since boot. */
+    uint32_t addressDrops() const { return _ld(_addressDrops); }
+
+    /**
+     * @brief The platform's reason code for the last LINK drop, 0 if none.
+     *
+     * Wi-Fi: the SDK's disconnect reason (802.11 reason codes below 200, the
+     * vendor's own from 200: beacon timeout, no AP found, ...). Ethernet has
+     * no reason to give and leaves it 0. An ADDRESS drop does not change it.
+     */
+    uint16_t lastDropReason() const { return _ld(_lastDropReason); }
+
+    /** @brief millis() at the last drop of either kind, 0 if there has been none. */
+    uint32_t lastDropMs() const { return _ld(_lastDropMs); }
+
 #if NTP_PROFILE_ENABLED
     /**
      * @brief Whether this interface should take its NTP servers from DHCP.
@@ -536,6 +611,37 @@ protected:
         _unlock();
     }
 
+    /**
+     * @brief Records a lost connection, for the link-health getters.
+     *
+     * Subclasses call it where they detect the loss, before _setState(FAILED):
+     * it counts only while the adapter is still CONNECTED, so a failed attempt
+     * (CONNECTING) and an event that follows our own stop() (IDLE) are ignored
+     * here without a guard at the call site. Changes nothing but the counters.
+     *
+     * Written under the adapter lock, which linkHealth() reads under; the
+     * lock is not held across _setState(), which takes it itself. One writer
+     * per adapter — the SDK event task on ESP32, the loop or the SDK callback
+     * on the cooperatively scheduled ESP8266, the loop on AVR — so a load and
+     * a store suffice, and no read-modify-write is needed (there is no
+     * libatomic on the xtensa-lx106). If the lock cannot be taken the drop
+     * goes uncounted, as _setState() itself would give up.
+     *
+     * @param kind   The layer that went.
+     * @param reason Platform reason code, LINK only; 0 when there is none.
+     */
+    void _noteDrop(DropKind kind, uint16_t reason = 0) {
+        if (getState() != State::CONNECTED) return;
+        uint32_t now = millis();
+        if (now == 0) now = 1;                       // 0 means "never"
+        if (!_lock()) return;
+        if (kind == DropKind::LINK) _st(_lastDropReason, reason);
+        _st(_lastDropMs, now);
+        if (kind == DropKind::LINK) _st(_linkDrops,    _ld(_linkDrops)    + 1);
+        else                        _st(_addressDrops, _ld(_addressDrops) + 1);
+        _unlock();
+    }
+
     NetworkProfile& _profile; ///< Associated network profile.
     NetworkStatus   _status;  ///< Cached live snapshot, refreshed by subclasses at GOT_IP.
 
@@ -682,6 +788,27 @@ private:
     State         _state;         ///< Current connection state (AVR: single task).
 #endif
     StateChangeCb _onStateChange; ///< Callback registered by NetworkManager.
+
+    // Link-health counters, see _noteDrop(). Plain on AVR (one task), atomic
+    // elsewhere, behind _ld()/_st() so the users above need no #if. The value
+    // parameter is kept out of deduction, so `count + 1` (an int expression)
+    // stores into whatever uint32_t is on the target.
+    template <typename T> struct _Same { typedef T type; };
+#ifndef ARDUINO_ARCH_AVR
+    std::atomic<uint32_t> _linkDrops      { 0 };
+    std::atomic<uint32_t> _addressDrops   { 0 };
+    std::atomic<uint32_t> _lastDropMs     { 0 };
+    std::atomic<uint16_t> _lastDropReason { 0 };
+    template <typename T> static T    _ld(const std::atomic<T>& a) { return a.load(); }
+    template <typename T> static void _st(std::atomic<T>& a, typename _Same<T>::type v) { a.store(v); }
+#else
+    uint32_t _linkDrops      = 0;
+    uint32_t _addressDrops   = 0;
+    uint32_t _lastDropMs     = 0;
+    uint16_t _lastDropReason = 0;
+    template <typename T> static T    _ld(const T& a) { return a; }
+    template <typename T> static void _st(T& a, typename _Same<T>::type v) { a = v; }
+#endif
 
 #ifndef ARDUINO_ARCH_AVR
     std::atomic<bool> _pendingApply { false };

@@ -49,6 +49,15 @@ echo Running start() failure retry test:
 test_start_retry.exe
 if errorlevel 1 set RC=1
 
+:health
+echo ------------------------------------------------------------
+echo Building link-health counters test ...
+g++ %FLAGS% test_link_health.cpp -o test_link_health.exe
+if errorlevel 1 ( echo BUILD FAILED: test_link_health.cpp & set RC=1 & goto :done )
+echo Running link-health counters test:
+test_link_health.exe
+if errorlevel 1 set RC=1
+
 :done
 echo ------------------------------------------------------------
 if "%RC%"=="0" (

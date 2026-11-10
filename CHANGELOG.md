@@ -9,6 +9,21 @@ and this project adheres to
 
 ## [Unreleased]
 
+### Added
+
+- Per-adapter link-health counters: `linkDrops()`, `addressDrops()`,
+  `lastDropReason()` and `lastDropMs()` on `NetworkAdapter`, and
+  `linkHealth()` for all four from one moment, with
+  `DropKind { LINK, ADDRESS }` — the medium (Wi-Fi association, Ethernet
+  carrier) or the address with the medium still up. Counted from a working
+  connection only, since boot; Wi-Fi drops carry the SDK's reason code. They
+  count what the events never show: a link that drops and returns within the
+  reconnect timeout raises no `DISCONNECTED`, and a device whose MQTT session
+  kept dropping had nothing to say why. Diagnostics only — nothing in the
+  manager reads them, and they do not affect its behaviour. Implemented by
+  every adapter; on ESP8266 WiFi, which has no lost-IP event, an address loss
+  is polled and only counted, the adapter staying `CONNECTED` as before
+
 ## [0.5.3] - 2026-11-02
 
 ### Fixed

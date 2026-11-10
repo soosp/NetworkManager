@@ -5,6 +5,7 @@
 #   make core       build + run only the Core regression suite
 #   make glue       build + run only the real-glue smoke test
 #   make retry      build + run only the start() failure retry test
+#   make health     build + run only the link-health counters test
 #   make clean      remove the built binaries
 #
 # Intended for Unix-like shells: Linux, macOS, WSL, Git-Bash or MSYS2 on
@@ -19,12 +20,13 @@ INCLUDES := -I. -I.. -I../src
 CORE := nm_harness
 GLUE := test_glue
 RETRY := test_start_retry
+HEALTH := test_link_health
 
-.PHONY: all run core glue retry clean
+.PHONY: all run core glue retry health clean
 all: run
 
 # Default: build + run everything.
-run: core glue retry
+run: core glue retry health
 
 $(CORE): nm_harness.cpp
 	$(CXX) $(CXXFLAGS) $(INCLUDES) $< -o $@
@@ -33,6 +35,9 @@ $(GLUE): test_glue.cpp
 	$(CXX) $(CXXFLAGS) $(INCLUDES) $< -o $@
 
 $(RETRY): test_start_retry.cpp
+	$(CXX) $(CXXFLAGS) $(INCLUDES) $< -o $@
+
+$(HEALTH): test_link_health.cpp
 	$(CXX) $(CXXFLAGS) $(INCLUDES) $< -o $@
 
 core: $(CORE)
@@ -50,5 +55,10 @@ retry: $(RETRY)
 	@echo "start() failure retry test:"
 	@./$(RETRY)
 
+health: $(HEALTH)
+	@echo "------------------------------------------------------------"
+	@echo "Link-health counters test:"
+	@./$(HEALTH)
+
 clean:
-	@rm -f $(CORE) $(GLUE) $(RETRY) $(CORE).exe $(GLUE).exe $(RETRY).exe
+	@rm -f $(CORE) $(GLUE) $(RETRY) $(HEALTH) $(CORE).exe $(GLUE).exe $(RETRY).exe $(HEALTH).exe

@@ -18,6 +18,7 @@ document describes the public API. For an overview and quick start, see
 - [NetworkAdapter (base class)](#networkadapter-base-class)
   - [State enum](#state-enum)
   - [Getters](#getters)
+  - [Link health](#link-health)
   - [Re-apply profiles](#re-apply-profiles)
 - [Adapters](#adapters)
   - [WiFi adapters — TX power & RSSI](#wifi-adapters--tx-power--rssi)
@@ -444,6 +445,75 @@ generated default. Available before the interface connects — configuration, no
 runtime state — with one exception: the WiFi MAC of an ESP32-P4, which belongs to
 its ESP-Hosted co-processor, is known only after the adapter's first `start()`.
 Until then `getMac()` returns `false` and zeros.
+
+### Link health
+
+Diagnostics only. These record what the adapter saw happen underneath the
+manager's events; nothing in NetworkManager reads them, and no decision —
+fallback, restore, the reconnect timeout, which event fires — depends on them.
+
+They therefore count things the events never show. A link that drops and comes
+back within `NETWORK_MANAGER_RECONNECT_TIMEOUT` is counted here, while the
+application sees no `DISCONNECTED` at all; that difference is exactly what they
+are for. A drop counts only from a working connection (`CONNECTED`, with an
+address): a failed connection attempt is not a drop. The counters start at
+zero at boot, are not persisted, and are per adapter.
+
+#### `enum class DropKind { LINK, ADDRESS }`
+
+The same two levels for every interface type. `LINK` is the medium — Wi-Fi
+association, Ethernet carrier. `ADDRESS` is the IP address going while the
+medium stays up — a lease not renewed. A link that goes takes its address with
+it; that is one `LINK` drop, not one of each.
+
+#### `uint32_t linkDrops() const`
+
+Working connections lost at the medium since boot.
+
+#### `uint32_t addressDrops() const`
+
+Addresses lost with the medium still up, since boot.
+
+#### `uint16_t lastDropReason() const`
+
+The platform's reason code for the last `LINK` drop, 0 if there has been none.
+Wi-Fi: the SDK's disconnect reason — 802.11 reason codes below 200, the
+vendor's own from 200 (200 beacon timeout, 201 no AP found, 202 auth failed,
+204 handshake timeout), the same on ESP32 and ESP8266. Ethernet has no reason
+to give and leaves it 0. An `ADDRESS` drop does not change it.
+
+#### `uint32_t lastDropMs() const`
+
+`millis()` at the last drop of either kind, 0 if there has been none.
+
+#### `LinkHealth linkHealth() const`
+
+All four from one moment: `linkDrops`, `addressDrops`, `lastDropMs`,
+`lastDropReason`. Each getter above is a single atomic load, so read one by one
+they can straddle a drop on ESP32, where the event task runs alongside the loop;
+`linkHealth()` reads them under the adapter lock the counting writes under, so
+a count always comes with its own reason and time. Use it whenever more than
+one value goes out together. All zero if the lock cannot be taken within
+`MUTEX_TIMEOUT`.
+
+|Adapter|`LINK`|`ADDRESS`|
+|---|---|---|
+|ESP32 WiFi|`WIFI_STA_DISCONNECTED`, with its reason|`WIFI_STA_LOST_IP`|
+|ESP32 Ethernet|`ETH_DISCONNECTED`|`ETH_LOST_IP`|
+|ESP8266 WiFi|station disconnected, with its reason|polled: no address for 2 s while associated¹|
+|ESP8266 Ethernet|polled: address gone, carrier `LinkOFF`|polled: address gone, carrier up or not detectable|
+|AVR Ethernet|polled: `linkStatus()` `LinkOFF` (never on a W5100)|`maintain()` renew/rebind failed|
+
+¹ The ESP8266 core has no lost-IP event. The adapter only counts this one: it
+stays `CONNECTED`, as it always has on that platform. The 2 s settle keeps a
+disassociation, which clears the address too, from being counted twice.
+
+```cpp
+NetworkAdapter::LinkHealth h = wifiAdapter.linkHealth();
+printf("link %lu, address %lu, last reason %u\n",
+       (unsigned long)h.linkDrops, (unsigned long)h.addressDrops,
+       (unsigned)h.lastDropReason);
+```
 
 ### Re-apply profiles
 

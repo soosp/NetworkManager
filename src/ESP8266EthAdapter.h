@@ -278,6 +278,11 @@ public:
             // lwIP/controller behaviour — verify on hardware; if it is too slow,
             // poll the link status as well.
             if (!_eth.connected()) {
+                // connected() is false for either; the carrier tells which.
+                // A controller that cannot detect it (Unknown) leaves only
+                // the address to blame.
+                _noteDrop(_eth.linkStatus() == LinkOFF ? DropKind::LINK
+                                                       : DropKind::ADDRESS);
                 _clearStatus();
                 _setState(State::FAILED);
             } else if (_eth.localIP() != _status.localIP) {

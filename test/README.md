@@ -4,7 +4,7 @@ These tests run on a normal PC — no ESP32, no flashing. They exercise the
 fallback / restore / reconnect logic on the host, in seconds, so regressions are
 caught before anything reaches hardware.
 
-Three suites:
+Four suites:
 
 - **`nm_harness.cpp`** — drives `NetworkManagerCore` (the pure decision logic)
   through a set of scenarios and asserts the exact event sequence each produces.
@@ -14,6 +14,10 @@ Three suites:
 - **`test_start_retry.cpp`** — the same, with an adapter whose `start()` fails
   (an Ethernet chip that does not answer): the next adapter must start at
   once, and the failing one be retried after 15, 30, 60 ... 300 s.
+- **`test_link_health.cpp`** — the per-adapter link-health counters: a drop the
+  manager rides out is counted while no `DISCONNECTED` is emitted, failed
+  attempts and our own `stop()` are not drops, and `LINK` and `ADDRESS` are
+  kept apart.
 
 `Arduino.h` and `NetworkProfile.h` here are tiny **host stubs** — just enough for
 the glue to compile and run on a PC. They are not used on the device.

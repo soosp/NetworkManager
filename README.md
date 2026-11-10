@@ -48,6 +48,9 @@ restore. Application code interacts only with `NetworkManager` after setup.
   delivered on the loop task
 - **Live status snapshot** — `getStatus()` / individual getters /
  `statusToJson()` for a web or MQTT payload
+- **Link-health counters** — per adapter, link and address losses since boot
+  with the last reason, including those the manager rides out without an
+  event. Diagnostics only: they do not affect the manager's behaviour
 - **NTP** — sync callback, configured vs. live-server accessors, runtime poll
   interval, and automatic DHCP option 42
 - **Runtime WiFi control** — `setTxPower()` / `getTxPower()` / `getRssi()`
@@ -186,6 +189,13 @@ if (NetworkManager.statusToJson(js, sizeof(js), /*includeNtp=*/true))
 `statusToJson()` always emits `interface`, `connected`, `ip`, `mask`, `gw`, and
 a `dns` array; with `includeNtp` it appends an `ntp` object (`synced` + a
 `servers` array). See [API.md](API.md#json-status).
+
+Each adapter also counts the connections it lost — at the medium (`linkDrops()`)
+or at the address (`addressDrops()`), with the last reason and time, and
+`linkHealth()` returns all four from one moment. They are
+diagnostics only, and count what the events never show: a WiFi drop the
+manager rides out within its reconnect timeout raises no `DISCONNECTED`, but it
+is counted. See [API.md](API.md#link-health).
 
 ## NTP servers
 

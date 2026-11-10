@@ -196,7 +196,9 @@ public:
      * within DHCP_TIMEOUT milliseconds, transitions to FAILED.
      */
     void update() override {
-        if (getState() != State::CONNECTING) return;
+        const State s = getState();
+        if (s == State::CONNECTED) { _watchAddress(); return; }
+        if (s != State::CONNECTING) return;
         if (millis() - _connectingStart > DHCP_TIMEOUT) {
             _setState(State::FAILED);
         }
@@ -284,6 +286,42 @@ private:
     static WiFiEventHandler _gotIpHandler;
     static WiFiEventHandler _disconnectedHandler;
 
+    /// An ADDRESS drop already counted; cleared when an address arrives.
+    bool     _addressLostNoted = false;
+    /// millis() when the address was first seen gone, 0 while there is one.
+    uint32_t _addressGoneSince = 0;
+
+    /// How long the address must stay gone before it counts — see below.
+    static constexpr uint32_t ADDRESS_LOSS_SETTLE_MS = 2000;
+
+    /**
+     * @brief Counts an address lost while the station stays associated.
+     *
+     * The ESP8266 core has no lost-IP event — the ESP32's STA_LOST_IP has no
+     * counterpart — so the loss is seen by polling. Counted once per loss, and
+     * only counted: the adapter stays CONNECTED as it always has here, because
+     * the counters are diagnostics and must not change what the manager does.
+     * When the lease comes back, the core's GOT_IP refreshes the snapshot.
+     *
+     * A disassociation clears the address too, and the core's disconnect
+     * event need not arrive in the same pass of the loop; the address must
+     * therefore stay gone for ADDRESS_LOSS_SETTLE_MS first. A link drop moves
+     * the adapter off CONNECTED within that time and is counted as LINK alone.
+     */
+    void _watchAddress() {
+        if ((uint32_t)WiFi.localIP() != 0) {
+            _addressLostNoted = false;
+            _addressGoneSince = 0;
+            return;
+        }
+        if (_addressLostNoted) return;
+        const uint32_t now = millis();
+        if (_addressGoneSince == 0) { _addressGoneSince = now ? now : 1; return; }
+        if (now - _addressGoneSince < ADDRESS_LOSS_SETTLE_MS) return;
+        _addressLostNoted = true;
+        _noteDrop(DropKind::ADDRESS);
+    }
+
     /**
      * @brief Called when the station obtains an IP address.
      * @param event Event data containing the assigned IP.
@@ -291,6 +329,8 @@ private:
     static void _onGotIp(const WiFiEventStationModeGotIP& /*event*/) {
         if (!_instance) return;
         _instance->_connectingStart = 0;
+        _instance->_addressLostNoted = false;
+        _instance->_addressGoneSince = 0;
         // Capture the live snapshot before the CONNECTED event is delivered, so
         // an app event handler that reads getStatus() already sees valid data.
         _instance->_cacheStatus(_instance->_buildStatus());
@@ -310,10 +350,11 @@ private:
      *
      * @param event Event data containing the disconnect reason.
      */
-    static void _onDisconnected(const WiFiEventStationModeDisconnected& /*event*/) {
+    static void _onDisconnected(const WiFiEventStationModeDisconnected& event) {
         if (!_instance) return;
         if (_instance->getState() == State::CONNECTED ||
             _instance->getState() == State::CONNECTING) {
+            _instance->_noteDrop(DropKind::LINK, (uint16_t)event.reason);
             _instance->_clearStatus();
             _instance->_setState(State::FAILED);
         }

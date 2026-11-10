@@ -449,6 +449,7 @@ private:
             }
             case ARDUINO_EVENT_ETH_LOST_IP: {
                 if (inst->getState() == State::CONNECTED) {
+                    inst->_noteDrop(DropKind::ADDRESS);
                     inst->_clearStatus();
                     inst->_setState(State::FAILED);
                 }
@@ -457,6 +458,7 @@ private:
             case ARDUINO_EVENT_ETH_DISCONNECTED: {
                 if (inst->getState() == State::CONNECTED ||
                     inst->getState() == State::CONNECTING) {
+                    inst->_noteDrop(DropKind::LINK);
                     inst->_clearStatus();
                     inst->_setState(State::FAILED);
                 }
