@@ -9,6 +9,8 @@ and this project adheres to
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-11-02
+
 ### Added
 
 - Per-adapter link-health counters: `linkDrops()`, `addressDrops()`,
@@ -809,7 +811,8 @@ First public release.
   `EthWiFiFallback` (ESP).
 - API reference (`API.md`) and testing notes (`Testing.md`).
 
-[Unreleased]: https://github.com/soosp/NetworkManager/compare/0.5.3...HEAD
+[Unreleased]: https://github.com/soosp/NetworkManager/compare/0.6.0...HEAD
+[0.6.0]: https://github.com/soosp/NetworkManager/compare/0.5.3...0.6.0
 [0.5.3]: https://github.com/soosp/NetworkManager/compare/0.5.2...0.5.3
 [0.5.2]: https://github.com/soosp/NetworkManager/compare/0.5.1...0.5.2
 [0.5.1]: https://github.com/soosp/NetworkManager/compare/0.5.0...0.5.1
